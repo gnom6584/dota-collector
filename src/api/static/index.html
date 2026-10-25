@@ -1,0 +1,2064 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dota 2 Match Collector — Панель управления</title>
+  <meta name="description" content="Административная панель управления конвейером сбора, созревания и обогащения реплеев Dota 2 с авторизацией и API-ключами.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #06090e;
+      --bg-surface: #0c121d;
+      --bg-card: rgba(14, 21, 35, 0.78);
+      --bg-card-hover: rgba(20, 30, 50, 0.88);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(0, 229, 255, 0.45);
+      
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      
+      --cyan: #00e5ff;
+      --cyan-glow: rgba(0, 229, 255, 0.28);
+      --purple: #a855f7;
+      --purple-glow: rgba(168, 85, 247, 0.28);
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.28);
+      --amber: #fbbf24;
+      --amber-glow: rgba(251, 191, 36, 0.28);
+      --rose: #f43f5e;
+      --rose-glow: rgba(244, 63, 94, 0.28);
+      
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --radius-full: 9999px;
+      --transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.5;
+      background-image: 
+        radial-gradient(circle at 10% 10%, rgba(0, 229, 255, 0.07) 0%, transparent 45%),
+        radial-gradient(circle at 90% 85%, rgba(168, 85, 247, 0.07) 0%, transparent 45%),
+        radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.03) 0%, transparent 60%);
+      background-attachment: fixed;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-base); }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+
+    /* Оверлей Авторизации */
+    #auth-screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(6, 9, 14, 0.94);
+      backdrop-filter: blur(24px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    #auth-screen.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .login-card {
+      background: rgba(14, 21, 35, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 440px;
+      padding: 38px 32px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 30px var(--cyan-glow);
+      position: relative;
+      overflow: hidden;
+      animation: cardAppear 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes cardAppear {
+      from { transform: scale(0.92) translateY(15px); opacity: 0; }
+      to { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    .login-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--cyan), var(--purple), var(--rose));
+    }
+    .login-badge {
+      width: 58px;
+      height: 58px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #00e5ff, #8b5cf6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      color: #06090e;
+      margin: 0 auto 20px;
+      box-shadow: 0 6px 25px var(--cyan-glow);
+    }
+    .login-header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .login-header h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.3px;
+    }
+    .login-header p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .error-banner {
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.35);
+      color: #fda4af;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      margin-bottom: 20px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Навбар */
+    header {
+      background: rgba(12, 18, 29, 0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-subtle);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 14px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .logo-badge {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      font-size: 20px;
+      color: #06090e;
+      box-shadow: 0 4px 18px var(--cyan-glow);
+    }
+    .title-group h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .title-group p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.04);
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-subtle);
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--emerald);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--emerald);
+      animation: pulseAnim 2s infinite;
+    }
+    @keyframes pulseAnim {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(1.25); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .user-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(168, 85, 247, 0.12);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+      color: #e9d5ff;
+    }
+
+    /* Кнопки */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 9px 18px;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: var(--transition);
+      text-decoration: none;
+      outline: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #00e5ff, #0284c7);
+      color: #06090e;
+      box-shadow: 0 4px 16px var(--cyan-glow);
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 22px rgba(0, 229, 255, 0.45);
+      background: linear-gradient(135deg, #33ebff, #0369a1);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+      border-color: var(--border-subtle);
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.18);
+      transform: translateY(-1px);
+    }
+    .btn-danger {
+      background: rgba(244, 63, 94, 0.12);
+      color: var(--rose);
+      border-color: rgba(244, 63, 94, 0.28);
+    }
+    .btn-danger:hover {
+      background: rgba(244, 63, 94, 0.22);
+      border-color: rgba(244, 63, 94, 0.45);
+    }
+    .btn-sm {
+      padding: 6px 13px;
+      font-size: 12px;
+    }
+    .btn-icon {
+      padding: 7px;
+      border-radius: var(--radius-sm);
+    }
+
+    /* Навигационные табы */
+    .nav-tabs {
+      display: flex;
+      gap: 8px;
+      background: rgba(14, 21, 35, 0.6);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 5px;
+      margin: 24px auto 0;
+      max-width: 1340px;
+      width: calc(100% - 48px);
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 10px 16px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: var(--transition);
+    }
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .tab-btn.active {
+      color: #06090e;
+      background: linear-gradient(135deg, var(--cyan), #38bdf8);
+      box-shadow: 0 4px 15px var(--cyan-glow);
+    }
+
+    /* Основной контент */
+    main {
+      max-width: 1340px;
+      margin: 0 auto;
+      padding: 24px 24px 60px;
+    }
+
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.25s ease;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Карточки метрик (3 колонки без отдельного буфера созревания) */
+    .metrics-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+    @media (max-width: 960px) {
+      .metrics-grid-3 { grid-template-columns: 1fr; }
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 22px;
+      position: relative;
+      overflow: hidden;
+      transition: var(--transition);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .metric-card:hover {
+      border-color: rgba(255, 255, 255, 0.16);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+    }
+    .metric-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 3px;
+    }
+    .metric-card.producer::before { background: linear-gradient(90deg, var(--cyan), var(--purple)); }
+    .metric-card.enriched::before { background: linear-gradient(90deg, var(--purple), var(--rose)); }
+    .metric-card.status::before { background: linear-gradient(90deg, var(--emerald), var(--cyan)); }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .card-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.9px;
+      color: var(--text-muted);
+    }
+    .card-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .badge-success { background: rgba(16, 185, 129, 0.16); color: var(--emerald); border: 1px solid rgba(16, 185, 129, 0.35); }
+    .badge-warning { background: rgba(251, 191, 36, 0.16); color: var(--amber); border: 1px solid rgba(251, 191, 36, 0.35); }
+    .badge-danger { background: rgba(244, 63, 94, 0.16); color: var(--rose); border: 1px solid rgba(244, 63, 94, 0.35); }
+    .badge-info { background: rgba(0, 229, 255, 0.16); color: var(--cyan); border: 1px solid rgba(0, 229, 255, 0.35); }
+
+    .metric-value-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .metric-number {
+      font-family: 'Outfit', sans-serif;
+      font-size: 34px;
+      font-weight: 800;
+      color: var(--text-main);
+      letter-spacing: -0.8px;
+    }
+    .metric-limit {
+      font-size: 14px;
+      color: var(--text-dim);
+    }
+
+    /* Прогресс-бары */
+    .progress-track {
+      background: rgba(255, 255, 255, 0.05);
+      height: 8px;
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      margin-bottom: 10px;
+      position: relative;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      transition: width 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .fill-cyan { background: linear-gradient(90deg, #00e5ff, #0284c7); box-shadow: 0 0 10px var(--cyan-glow); }
+    .fill-purple { background: linear-gradient(90deg, #a855f7, #f43f5e); box-shadow: 0 0 10px var(--purple-glow); }
+
+    .card-footer-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Панели */
+    .panel-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 28px;
+    }
+    @media (max-width: 980px) {
+      .panel-grid-2 { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .panel-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 17px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Формы */
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .form-group label .help {
+      font-weight: 400;
+      color: var(--text-dim);
+    }
+    .input-wrapper {
+      position: relative;
+      display: flex;
+    }
+    .input {
+      width: 100%;
+      background: rgba(9, 13, 22, 0.75);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      transition: var(--transition);
+    }
+    .input:focus {
+      outline: none;
+      border-color: var(--cyan);
+      box-shadow: 0 0 14px var(--cyan-glow);
+      background: rgba(14, 21, 35, 0.95);
+    }
+    .input.mono {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+    select.input {
+      cursor: pointer;
+    }
+    select.input option {
+      background: #0c121d;
+      color: #f8fafc;
+    }
+
+    .form-row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    /* Свитч */
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: var(--radius-sm);
+      margin-bottom: 18px;
+      border: 1px solid var(--border-subtle);
+    }
+    .toggle-info h4 { font-size: 13px; font-weight: 600; }
+    .toggle-info p { font-size: 11px; color: var(--text-dim); }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, 0.15);
+      transition: .3s;
+      border-radius: 24px;
+    }
+    .slider:before {
+      position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+    input:checked + .slider { background-color: var(--emerald); }
+    input:checked + .slider:before { transform: translateX(20px); }
+
+    /* Таблицы */
+    .custom-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .custom-table th {
+      text-align: left;
+      padding: 10px 14px;
+      color: var(--text-dim);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .custom-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      vertical-align: middle;
+    }
+    .custom-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .key-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      background: rgba(0, 229, 255, 0.08);
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      color: var(--cyan);
+      padding: 4px 8px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .code-block {
+      background: #06090e;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #38bdf8;
+      overflow-x: auto;
+      margin-top: 10px;
+    }
+
+    /* Модальное окно просмотра JSON */
+    #json-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(6, 9, 14, 0.85);
+      backdrop-filter: blur(16px);
+      z-index: 1100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    #json-modal.show { display: flex; }
+    .modal-box {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      width: 100%;
+      max-width: 800px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+      overflow: hidden;
+    }
+    .modal-head {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-body {
+      padding: 18px 20px;
+      overflow-y: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #93c5fd;
+      white-space: pre-wrap;
+      word-break: break-all;
+      background: #06090e;
+    }
+
+    /* Тост */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: rgba(14, 21, 35, 0.95);
+      border: 1px solid var(--cyan);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px var(--cyan-glow);
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: var(--transition);
+      z-index: 2000;
+    }
+    #toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* Архитектурный поток */
+    .flow-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 18px;
+    }
+    @media (max-width: 860px) {
+      .flow-grid { grid-template-columns: 1fr; }
+    }
+    .flow-step {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      position: relative;
+    }
+    .flow-step-num {
+      font-family: 'Outfit', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 6px;
+    }
+    .flow-step h5 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .flow-step p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Экран авторизации (Login Card) -->
+  <div id="auth-screen">
+    <div class="login-card">
+      <div class="login-badge">🛡️</div>
+      <div class="login-header">
+        <h2>DOTA 2 COLLECTOR</h2>
+        <p>Панель администратора &bull; Авторизация</p>
+      </div>
+
+      <div id="login-error" class="error-banner">
+        <span>✕</span> <span id="login-error-msg">Неверный логин или пароль</span>
+      </div>
+
+      <form id="login-form" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label for="admin-user-input">Логин администратора</label>
+          <input type="text" id="admin-user-input" class="input" placeholder="admin" required autofocus autocomplete="username">
+        </div>
+
+        <div class="form-group" style="margin-bottom: 24px;">
+          <label for="admin-pass-input">Пароль</label>
+          <input type="password" id="admin-pass-input" class="input" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+
+        <button type="submit" id="login-submit-btn" class="btn btn-primary" style="width: 100%; padding: 12px;">
+          Войти в систему
+        </button>
+      </form>
+
+      <p style="text-align: center; margin-top: 18px; font-size: 11px; color: var(--text-dim);">
+        Учётные данные администратора настраиваются через переменные окружения сервера.
+      </p>
+    </div>
+  </div>
+
+  <!-- Верхний Хэдер -->
+  <header>
+    <div class="logo-group">
+      <div class="logo-badge">D2</div>
+      <div class="title-group">
+        <h1>DOTA 2 MATCH COLLECTOR</h1>
+        <p>Конвейер сбора, созревания и обогащения реплеев</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="status-pill">
+        <div class="pulse-dot"></div>
+        <span id="pipeline-status-text">WAL активен</span>
+      </div>
+      <div class="user-badge" id="admin-user-badge">
+        <span>👤</span>
+        <span id="admin-user-name">admin</span>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="fetchStats()" title="Обновить метрики">↻</button>
+      <a href="/docs" target="_blank" class="btn btn-secondary btn-sm" title="Интерактивная документация">Swagger /docs</a>
+      <button class="btn btn-danger btn-sm" onclick="handleLogout()" title="Выйти из системы">Выйти</button>
+    </div>
+  </header>
+
+  <!-- Навигационные вкладки -->
+  <nav class="nav-tabs">
+    <button class="tab-btn active" onclick="switchTab('tab-overview')">
+      <span>📊</span> Пайплайн и Очереди
+    </button>
+    <button class="tab-btn" onclick="switchTab('tab-workers')">
+      <span>⚡</span> Конфигурация воркеров
+    </button>
+    <button class="tab-btn" onclick="switchTab('tab-keys')">
+      <span>🔑</span> API Ключи клиентов
+    </button>
+    <button class="tab-btn" onclick="switchTab('tab-feed')">
+      <span>🎮</span> Живой фид матчей
+    </button>
+  </nav>
+
+  <main>
+    <!-- Вкладка 1: Пайплайн и Очереди -->
+    <section id="tab-overview" class="tab-content active">
+      <!-- Метрики очередей: 3 карточки (без отдельного буфера созревания) -->
+      <div class="metrics-grid-3">
+        <!-- 1. Очередь новых матчей (OpenDota) -->
+        <div class="metric-card producer">
+          <div>
+            <div class="card-head">
+              <span class="card-label">Сборщик матчей (OpenDota)</span>
+              <span class="card-badge" id="producer-state-badge">IDLE</span>
+            </div>
+            <div class="metric-value-row">
+              <span class="metric-number" id="raw-count">0</span>
+              <span class="metric-limit">/ <span id="producer-buffer-limit">1000</span></span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill fill-cyan" id="raw-progress" style="width: 0%"></div>
+            </div>
+          </div>
+          <div class="card-footer-info" style="margin-top: 14px;">
+            <span>Заполнено: <strong id="raw-pct">0%</strong></span>
+            <span>Курсор: <strong id="last-match-id">—</strong></span>
+          </div>
+        </div>
+
+        <!-- 2. Хранилище матчей (Stratz) с плашкой созревания -->
+        <div class="metric-card enriched">
+          <div>
+            <div class="card-head">
+              <span class="card-label">Хранилище матчей (Stratz)</span>
+              <span class="card-badge badge-info">FIFO Ротация</span>
+            </div>
+            <div class="metric-value-row">
+              <span class="metric-number" id="enriched-count">0</span>
+              <span class="metric-limit">/ <span id="enriched-max-limit">10000</span></span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill fill-purple" id="enriched-progress" style="width: 0%"></div>
+            </div>
+
+            <!-- Индикатор созревания реплеев -->
+            <div id="maturation-banner" style="margin-top: 10px; padding: 8px 12px; border-radius: var(--radius-sm); font-size: 12px; display: flex; align-items: center; justify-content: space-between; background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); color: #fde68a;">
+              <span id="maturation-banner-text">⏳ Ожидание созревания реплеев</span>
+              <strong id="maturation-ripe-badge" class="card-badge badge-warning">0 готово</strong>
+            </div>
+          </div>
+          <div class="card-footer-info" style="margin-top: 14px;">
+            <span>Заполнено: <strong id="enriched-pct">0%</strong></span>
+            <span>Выдача через API активна</span>
+          </div>
+        </div>
+
+        <!-- 3. Статусы сервисов -->
+        <div class="metric-card status">
+          <div>
+            <div class="card-head">
+              <span class="card-label">Сервисы и хранилище</span>
+              <span class="card-badge badge-success">Режим WAL</span>
+            </div>
+            <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 13px; font-weight: 500;">Сборщик (Producer):</span>
+                <span class="card-badge" id="producer-worker-badge">...</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 13px; font-weight: 500;">Обогатитель (Stratz):</span>
+                <span class="card-badge" id="enricher-worker-badge">...</span>
+              </div>
+            </div>
+          </div>
+          <div class="card-footer-info" style="margin-top: 20px;">
+            <span>Синхронизировано: <span id="last-update-time">—</span></span>
+            <span style="color: var(--cyan); cursor: pointer;" onclick="fetchStats()">Обновить ↻</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Счётчики обращений к внешним API (OpenDota и Stratz) -->
+      <div class="panel" style="margin-top: 24px;">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>🌐</span> Счётчики запросов к внешним API (OpenDota и Stratz)
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="resetApiMetrics()" title="Сбросить накопленную статистику обращений">
+            ↺ Сбросить счётчики
+          </button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-top: 14px;">
+          <!-- Карточка OpenDota API -->
+          <div style="background: rgba(0, 229, 255, 0.03); border: 1px solid rgba(0, 229, 255, 0.18); border-radius: var(--radius-sm); padding: 18px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <span style="font-weight: 700; font-size: 14px; color: var(--cyan); display: flex; align-items: center; gap: 8px;">
+                📡 OpenDota API
+              </span>
+              <span class="card-badge" id="metric-opendota-status">OK</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center;">
+              <div style="background: rgba(0,0,0,0.35); padding: 10px; border-radius: 8px; border: 1px solid var(--border-subtle);">
+                <div style="font-size: 11px; color: var(--text-dim); text-transform: uppercase;">Всего</div>
+                <div style="font-size: 18px; font-weight: 700; color: var(--text-main);" id="metric-opendota-total">0</div>
+              </div>
+              <div style="background: rgba(0,0,0,0.35); padding: 10px; border-radius: 8px; border: 1px solid rgba(251, 191, 36, 0.2);">
+                <div style="font-size: 11px; color: var(--amber); text-transform: uppercase;">Лимиты 429</div>
+                <div style="font-size: 18px; font-weight: 700; color: var(--amber);" id="metric-opendota-429">0</div>
+              </div>
+              <div style="background: rgba(0,0,0,0.35); padding: 10px; border-radius: 8px; border: 1px solid rgba(244, 63, 94, 0.2);">
+                <div style="font-size: 11px; color: var(--rose); text-transform: uppercase;">Ошибки</div>
+                <div style="font-size: 18px; font-weight: 700; color: var(--rose);" id="metric-opendota-errors">0</div>
+              </div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 14px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+              <span>Успешных (200): <strong style="color: var(--emerald);" id="metric-opendota-200">0</strong></span>
+              <span>Последний запрос: <span id="metric-opendota-last">—</span></span>
+            </div>
+          </div>
+
+          <!-- Карточка Stratz GraphQL API -->
+          <div style="background: rgba(168, 85, 247, 0.03); border: 1px solid rgba(168, 85, 247, 0.18); border-radius: var(--radius-sm); padding: 18px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <span style="font-weight: 700; font-size: 14px; color: var(--purple); display: flex; align-items: center; gap: 8px;">
+                🔮 Stratz GraphQL API
+              </span>
+              <span class="card-badge" id="metric-stratz-status">OK</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center;">
+              <div style="background: rgba(0,0,0,0.35); padding: 10px; border-radius: 8px; border: 1px solid var(--border-subtle);">
+                <div style="font-size: 11px; color: var(--text-dim); text-transform: uppercase;">Всего</div>
+                <div style="font-size: 18px; font-weight: 700; color: var(--text-main);" id="metric-stratz-total">0</div>
+              </div>
+              <div style="background: rgba(0,0,0,0.35); padding: 10px; border-radius: 8px; border: 1px solid rgba(251, 191, 36, 0.2);">
+                <div style="font-size: 11px; color: var(--amber); text-transform: uppercase;">Лимиты 429</div>
+                <div style="font-size: 18px; font-weight: 700; color: var(--amber);" id="metric-stratz-429">0</div>
+              </div>
+              <div style="background: rgba(0,0,0,0.35); padding: 10px; border-radius: 8px; border: 1px solid rgba(244, 63, 94, 0.2);">
+                <div style="font-size: 11px; color: var(--rose); text-transform: uppercase;">Ошибки</div>
+                <div style="font-size: 18px; font-weight: 700; color: var(--rose);" id="metric-stratz-errors">0</div>
+              </div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 14px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+              <span>Успешных (200): <strong style="color: var(--emerald);" id="metric-stratz-200">0</strong></span>
+              <span>Последний запрос: <span id="metric-stratz-last">—</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Схема архитектуры пайплайна (без snake_case слов) -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>🛡️</span> Архитектурная схема отказоустойчивости
+          </div>
+          <span class="card-badge badge-success">Автономный режим</span>
+        </div>
+        <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+          Все сервисы работают независимо в бесконечных циклах через единую базу данных SQLite с журналом WAL. Падение любого процесса не приводит к потере данных: при перезапуске сборщик и обогатитель подхватывают актуальные курсоры прямо из базы.
+        </p>
+
+        <div class="flow-grid">
+          <div class="flow-step">
+            <div class="flow-step-num">Этап 1</div>
+            <h5>Сборщик OpenDota</h5>
+            <p>Вытягивает недавние публичные матчи через обратную пагинацию и складывает их в очередь ожидания созревания.</p>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">Этап 2</div>
+            <h5>Созревание реплеев</h5>
+            <p>Матчи выдерживаются необходимое время (например, 6 часов), пока сервера Dota 2 формируют и публикуют реплеи.</p>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">Этап 3</div>
+            <h5>Обогатитель Stratz и ротация</h5>
+            <p>Запрашивает полную статистику пачками в Stratz API, транзакционно сохраняет в базу и держит установленный лимит ротацией.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Вкладка 2: Конфигурация воркеров -->
+    <section id="tab-workers" class="tab-content">
+      <div class="panel-grid-2">
+        <!-- Панель 1: Настройки обогатителя Stratz -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <span>🔮</span> Обогатитель (Stratz)
+            </div>
+            <span class="card-badge" id="enricher-header-badge">На паузе</span>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <h4>Активность обогатителя</h4>
+              <p>Приостановить или возобновить обработку созревших матчей</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="enricher-running-toggle" onchange="toggleEnricherRunning()">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Дневной расход воркера Stratz -->
+          <div style="background: rgba(168, 85, 247, 0.06); border: 1px solid rgba(168, 85, 247, 0.22); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; font-size: 13px;">
+            <div>
+              <span style="color: var(--text-muted);">Запросов Stratz сегодня:</span>
+              <strong id="enricher-daily-usage-text" style="color: var(--purple); margin-left: 6px;">0 / без лимита</strong>
+              <span id="enricher-daily-status-tag" style="margin-left: 8px;"></span>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="resetWorkerDailyLimit('enricher')" title="Сбросить счетчик за сегодня и возобновить работу воркера">
+              ↺ Сбросить за сегодня
+            </button>
+          </div>
+
+          <!-- Поле токена Stratz (обычный текст без запроса браузера на сохранение пароля) -->
+          <div class="form-group">
+            <label>
+              <span>API Токен Stratz</span>
+              <span class="help"><a href="https://stratz.com/api" target="_blank" style="color: var(--cyan); text-decoration: none;">Получить токен ↗</a></span>
+            </label>
+            <div class="input-wrapper" style="gap: 8px;">
+              <input type="text" id="stratz-token-input" class="input mono" placeholder="Вставьте токен доступа Stratz..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="stratz_token_field" data-lpignore="true">
+              <button class="btn btn-secondary btn-sm" onclick="testStratzToken()">Проверить токен</button>
+            </div>
+            <div id="token-test-result" style="font-size: 11px; margin-top: 6px; display: none;"></div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label><span>Время созревания (часы)</span></label>
+              <input type="number" step="0.1" min="0" id="enricher-min-age" class="input" placeholder="6.0">
+            </div>
+            <div class="form-group">
+              <label><span>Максимальное число матчей в базе</span></label>
+              <input type="number" min="0" id="enricher-max-matches" class="input" placeholder="10000">
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label>
+                <span>Дневной лимит запросов Stratz</span>
+                <span class="help">0 = без лимита</span>
+              </label>
+              <input type="number" min="0" id="enricher-daily-limit" class="input" placeholder="Например, 10000 (0 = без огр.)">
+            </div>
+            <div class="form-group">
+              <label><span>Пауза между запросами (сек)</span></label>
+              <input type="number" step="0.1" min="0" id="enricher-chunk-delay" class="input" placeholder="0.5">
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <button class="btn btn-primary" style="flex: 2;" onclick="saveEnricherConfig()">
+              Сохранить параметры Stratz
+            </button>
+            <button class="btn btn-secondary" style="flex: 1;" onclick="resetEnricherForm()" title="Восстановить поля к текущим сохранённым значениям базы данных">
+              ↺ Восстановить
+            </button>
+          </div>
+        </div>
+
+        <!-- Панель 2: Настройки сборщика OpenDota -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <span>📡</span> Сборщик матчей (OpenDota)
+            </div>
+            <span class="card-badge" id="producer-header-badge">На паузе</span>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <h4>Активность сборщика</h4>
+              <p>Пауза прекращает обращения к OpenDota API</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="producer-running-toggle" onchange="toggleProducerRunning()">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Дневной расход воркера OpenDota -->
+          <div style="background: rgba(0, 229, 255, 0.06); border: 1px solid rgba(0, 229, 255, 0.22); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; font-size: 13px;">
+            <div>
+              <span style="color: var(--text-muted);">Запросов OpenDota сегодня:</span>
+              <strong id="producer-daily-usage-text" style="color: var(--cyan); margin-left: 6px;">0 / без лимита</strong>
+              <span id="producer-daily-status-tag" style="margin-left: 8px;"></span>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="resetWorkerDailyLimit('producer')" title="Сбросить счетчик за сегодня и возобновить работу воркера">
+              ↺ Сбросить за сегодня
+            </button>
+          </div>
+
+          <div class="form-group">
+            <label>
+              <span>API Ключ OpenDota (Опционально)</span>
+              <span class="help">Увеличивает лимиты запросов</span>
+            </label>
+            <input type="text" id="producer-api-key" class="input mono" placeholder="Оставьте пустым при отсутствии..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="opendota_key_field" data-lpignore="true">
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label><span>Вместимость очереди</span></label>
+              <input type="number" min="10" id="producer-buffer-size" class="input" placeholder="1000">
+            </div>
+            <div class="form-group">
+              <label><span>Интервал между запросами (сек)</span></label>
+              <input type="number" step="0.1" min="0.1" id="producer-delay" class="input" placeholder="1.2">
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label><span>Пауза при заполненной очереди (сек)</span></label>
+              <input type="number" step="0.5" min="0.5" id="producer-idle-delay" class="input" placeholder="2.0">
+            </div>
+            <div class="form-group">
+              <label><span>Пауза при лимите 429 (сек)</span></label>
+              <input type="number" step="1.0" min="1.0" id="producer-limit-sleep" class="input" placeholder="60.0">
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label>
+                <span>Дневной лимит запросов OpenDota</span>
+                <span class="help">0 = без лимита</span>
+              </label>
+              <input type="number" min="0" id="producer-daily-limit" class="input" placeholder="Например, 2000 (0 = без огр.)">
+            </div>
+            <div class="form-group">
+            </div>
+          </div>
+
+          <!-- Фильтрация входящих матчей OpenDota -->
+          <div style="border-top: 1px solid var(--border-subtle); padding-top: 14px; margin-top: 10px; margin-bottom: 6px;">
+            <div style="font-size: 13px; font-weight: 700; color: var(--cyan); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
+              <span style="display: flex; align-items: center; gap: 6px;">🎯 Фильтрация входящих матчей OpenDota</span>
+              <span style="font-size: 11px; font-weight: normal; color: var(--text-dim);">клиентский отбор на стороне воркера</span>
+            </div>
+
+            <div class="form-row-2">
+              <div class="form-group">
+                <label><span>Мин. ранг tier (от)</span></label>
+                <select id="producer-min-rank" class="input">
+                  <option value="">Все ранги (Любой)</option>
+                  <option value="10">Herald 10+</option>
+                  <option value="20">Guardian 20+</option>
+                  <option value="30">Crusader 30+</option>
+                  <option value="40">Archon 40+</option>
+                  <option value="50">Legend 50+</option>
+                  <option value="60">Ancient 60+</option>
+                  <option value="70">Divine 70+</option>
+                  <option value="80">Immortal 80+</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label><span>Макс. ранг tier (до)</span></label>
+                <select id="producer-max-rank" class="input">
+                  <option value="">Без ограничения сверху</option>
+                  <option value="19">Herald (макс 19)</option>
+                  <option value="29">Guardian (макс 29)</option>
+                  <option value="39">Crusader (макс 39)</option>
+                  <option value="49">Archon (макс 49)</option>
+                  <option value="59">Legend (макс 59)</option>
+                  <option value="69">Ancient (макс 69)</option>
+                  <option value="79">Divine (макс 79)</option>
+                  <option value="85">Immortal (макс 85)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row-2">
+              <div class="form-group">
+                <label><span>Мин. длительность (минут)</span></label>
+                <input type="number" min="0" id="producer-min-duration" class="input" placeholder="Например, 15 (0 = без огр.)">
+              </div>
+              <div class="form-group">
+                <label><span>Макс. длительность (минут)</span></label>
+                <input type="number" min="0" id="producer-max-duration" class="input" placeholder="Например, 90 (0 = без огр.)">
+              </div>
+            </div>
+
+            <div class="form-row-2">
+              <div class="form-group">
+                <label><span>Тип лобби</span></label>
+                <select id="producer-lobby-type" class="input">
+                  <option value="">Все типы лобби</option>
+                  <option value="7">Рейтинговый (Ranked, 7)</option>
+                  <option value="0">Обычный (Normal / Unranked, 0)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label><span>Режим игры</span></label>
+                <select id="producer-game-mode" class="input">
+                  <option value="">Все режимы</option>
+                  <option value="22">All Pick (22)</option>
+                  <option value="2">Captains Mode (2)</option>
+                  <option value="23">Turbo (23)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-top: 14px;">
+            <button class="btn btn-primary" style="flex: 2;" onclick="saveProducerConfig()">
+              Сохранить параметры OpenDota
+            </button>
+            <button class="btn btn-secondary" style="flex: 1;" onclick="resetProducerForm()" title="Восстановить поля к текущим сохранённым значениям базы данных">
+              ↺ Восстановить
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Вкладка 3: API Ключи -->
+    <section id="tab-keys" class="tab-content">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>🔑</span> Управление API-ключами доступа клиентов
+          </div>
+          <span class="card-badge badge-info" id="keys-count-badge">0 ключей</span>
+        </div>
+
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+          Все клиентские запросы к <code>/api/v1/matches</code> и <code>/api/v1/matches/count</code> защищены авторизацией через API-ключи. Вы можете генерировать изолированные ключи для разных микросервисов или внешних пользователей.
+        </p>
+
+        <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+          <input type="text" id="new-key-name" class="input" placeholder="Название ключа (например, Клиентское приложение, Аналитика)..." style="max-width: 450px;">
+          <button class="btn btn-primary" onclick="generateApiKey()">⚡ Создать новый ключ</button>
+        </div>
+
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>Название</th>
+              <th>API Ключ</th>
+              <th>Дата создания</th>
+              <th>Статус</th>
+              <th style="text-align: right;">Действия</th>
+            </tr>
+          </thead>
+          <tbody id="keys-table-body">
+            <tr><td colspan="5" style="text-align: center; color: var(--text-dim); padding: 24px;">Загрузка ключей...</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Пример интеграции -->
+        <div style="margin-top: 28px;">
+          <span class="card-label">Пример использования в клиентском приложении (cURL):</span>
+          <div class="code-block" id="curl-example">
+curl -H "X-API-Key: YOUR_API_KEY" "http://localhost:8000/api/v1/matches?limit=50&offset=0"
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Вкладка 4: Живой фид матчей -->
+    <section id="tab-feed" class="tab-content">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>🎮</span> Последние сохранённые матчи
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="loadRecentMatches()">Обновить фид ↻</button>
+        </div>
+
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+          Здесь отображаются последние распарсенные реплеи, сохранённые в базе данных. Вы можете кликнуть на матч, чтобы просмотреть сырой JSON со всеми показателями.
+        </p>
+
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>Номер матча</th>
+              <th>Победитель</th>
+              <th>Длительность</th>
+              <th>Счёт (Radiant : Dire)</th>
+              <th>Время сбора</th>
+              <th style="text-align: right;">Просмотр</th>
+            </tr>
+          </thead>
+          <tbody id="feed-table-body">
+            <tr><td colspan="6" style="text-align: center; color: var(--text-dim); padding: 24px;">Матчи пока собираются...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Модальное окно просмотра JSON -->
+  <div id="json-modal" onclick="closeJsonModal(event)">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <div class="modal-head">
+        <div style="font-family: 'Outfit', sans-serif; font-size: 16px; font-weight: 700;">
+          Информация о матче <span id="modal-match-id" style="color: var(--cyan);">#—</span>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeJsonModal()">✕ Закрыть</button>
+      </div>
+      <div class="modal-body" id="modal-json-content">
+        Загрузка...
+      </div>
+    </div>
+  </div>
+
+  <!-- Модальное окно подтверждения потери данных при уменьшении лимита -->
+  <div id="confirm-modal" style="position: fixed; inset: 0; background: rgba(6, 9, 14, 0.88); backdrop-filter: blur(16px); z-index: 1200; display: none; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-box" style="max-width: 520px; border-color: rgba(244, 63, 94, 0.45); box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 25px var(--rose-glow);">
+      <div class="modal-head" style="background: rgba(244, 63, 94, 0.08); border-bottom: 1px solid rgba(244, 63, 94, 0.25);">
+        <div style="font-family: 'Outfit', sans-serif; font-size: 17px; font-weight: 700; color: var(--rose); display: flex; align-items: center; gap: 8px;">
+          <span>⚠️</span> Предупреждение: Потеря данных
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeConfirmModal(false)">✕</button>
+      </div>
+      <div style="padding: 22px 24px;">
+        <h4 style="font-size: 16px; margin-bottom: 10px; color: var(--text-main);">Вы действительно хотите потерять данные?</h4>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.6;">
+          Уменьшение максимального количества записей приведёт к затиранию сохранённых матчей через FIFO-ротацию.
+        </p>
+        <div style="background: rgba(0, 0, 0, 0.45); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 14px; font-size: 13px; margin-bottom: 20px; line-height: 1.7;">
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--text-dim);">Текущее количество в базе:</span>
+            <strong id="confirm-current-count" style="color: var(--cyan);">0</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--text-dim);">Новый максимальный лимит:</span>
+            <strong id="confirm-new-limit" style="color: var(--amber);">0</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(255, 255, 255, 0.08); color: var(--rose); font-weight: 600;">
+            <span>Будет безвозвратно удалено:</span>
+            <span id="confirm-excess-count">0 матчей</span>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <button class="btn btn-secondary" onclick="closeConfirmModal(false)">Отмена (сохранить данные)</button>
+          <button class="btn btn-danger" onclick="closeConfirmModal(true)">Да, удалить старые записи</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Уведомление-тост -->
+  <div id="toast">
+    <span id="toast-icon">✓</span>
+    <span id="toast-message">Действие выполнено</span>
+  </div>
+
+  <script>
+    let currentConfig = null;
+    let recentMatchesCache = [];
+    let isEnricherFormInitialized = false;
+    let isProducerFormInitialized = false;
+
+    // --- Вспомогательные функции ---
+    function showToast(message, isError = false) {
+      const toast = document.getElementById("toast");
+      const icon = document.getElementById("toast-icon");
+      const msg = document.getElementById("toast-message");
+      
+      icon.innerText = isError ? "✕" : "✓";
+      toast.style.borderColor = isError ? "var(--rose)" : "var(--cyan)";
+      msg.innerText = message;
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 3500);
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(content => content.classList.remove("active"));
+      
+      const targetBtn = Array.from(document.querySelectorAll(".tab-btn")).find(b => b.getAttribute("onclick").includes(tabId));
+      if (targetBtn) targetBtn.classList.add("active");
+      
+      const targetContent = document.getElementById(tabId);
+      if (targetContent) targetContent.classList.add("active");
+
+      if (tabId === "tab-feed") {
+        loadRecentMatches();
+      } else if (tabId === "tab-keys") {
+        loadApiKeys();
+      } else if (tabId === "tab-workers") {
+        if (currentConfig) {
+          if (!isEnricherFormInitialized && currentConfig.enricher) populateEnricherForm(currentConfig.enricher);
+          if (!isProducerFormInitialized && currentConfig.producer) populateProducerForm(currentConfig.producer);
+        }
+      }
+    }
+
+    // --- Авторизация ---
+    async function checkAuth() {
+      try {
+        const res = await fetch("/admin/api/auth-status");
+        const data = await res.json();
+        if (data.authenticated) {
+          document.getElementById("auth-screen").classList.add("hidden");
+          document.getElementById("admin-user-name").innerText = data.username || "admin";
+          fetchStats();
+          loadApiKeys();
+        } else {
+          document.getElementById("auth-screen").classList.remove("hidden");
+        }
+      } catch (err) {
+        document.getElementById("auth-screen").classList.remove("hidden");
+      }
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const usernameInput = document.getElementById("admin-user-input");
+      const passwordInput = document.getElementById("admin-pass-input");
+      const errBanner = document.getElementById("login-error");
+      const errMsg = document.getElementById("login-error-msg");
+      const btn = document.getElementById("login-submit-btn");
+
+      errBanner.style.display = "none";
+      btn.disabled = true;
+      btn.innerText = "Авторизация...";
+
+      try {
+        const res = await fetch("/admin/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: usernameInput.value,
+            password: passwordInput.value
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById("auth-screen").classList.add("hidden");
+          document.getElementById("admin-user-name").innerText = data.username || "admin";
+          showToast("Добро пожаловать в панель управления!");
+          fetchStats();
+          loadApiKeys();
+        } else {
+          const errData = await res.json().catch(() => ({ detail: "Ошибка авторизации" }));
+          errMsg.innerText = errData.detail || "Неверный логин или пароль";
+          errBanner.style.display = "flex";
+        }
+      } catch (err) {
+        errMsg.innerText = "Сетевой сбой при входе: " + err;
+        errBanner.style.display = "flex";
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Войти в систему";
+      }
+    }
+
+    async function handleLogout() {
+      if (!confirm("Выйти из панели администратора?")) return;
+      try {
+        await fetch("/admin/api/logout", { method: "POST" });
+      } catch (e) {}
+      document.getElementById("auth-screen").classList.remove("hidden");
+      document.getElementById("admin-pass-input").value = "";
+    }
+
+    // --- Безопасный парсинг чисел (0, 0.0, float, целые) ---
+    function parseNum(val, fallback, isFloat = false, minVal = null) {
+      if (val === null || val === undefined) return fallback;
+      const s = String(val).trim();
+      if (s === "") return fallback;
+      const num = isFloat ? parseFloat(s) : parseInt(s, 10);
+      if (isNaN(num)) return fallback;
+      if (minVal !== null && num < minVal) return minVal;
+      return num;
+    }
+
+    // --- Заполнение и восстановление полей форм ---
+    function populateEnricherForm(e) {
+      if (!e) return;
+      document.getElementById("stratz-token-input").value = e.stratz_token || "";
+      document.getElementById("enricher-min-age").value = (e.min_age_hours !== undefined && e.min_age_hours !== null) ? e.min_age_hours : 6.0;
+      document.getElementById("enricher-max-matches").value = (e.max_enriched_matches !== undefined && e.max_enriched_matches !== null) ? e.max_enriched_matches : 1000;
+      document.getElementById("enricher-daily-limit").value = (e.daily_request_limit !== undefined && e.daily_request_limit !== null) ? e.daily_request_limit : "";
+      document.getElementById("enricher-chunk-delay").value = (e.chunk_delay !== undefined && e.chunk_delay !== null) ? e.chunk_delay : 0.5;
+      isEnricherFormInitialized = true;
+    }
+
+    function populateProducerForm(p) {
+      if (!p) return;
+      document.getElementById("producer-api-key").value = p.api_key || "";
+      document.getElementById("producer-buffer-size").value = (p.buffer_size !== undefined && p.buffer_size !== null) ? p.buffer_size : 1000;
+      document.getElementById("producer-delay").value = (p.delay !== undefined && p.delay !== null) ? p.delay : 1.2;
+      document.getElementById("producer-idle-delay").value = (p.idle_delay !== undefined && p.idle_delay !== null) ? p.idle_delay : 2.0;
+      document.getElementById("producer-limit-sleep").value = (p.limit_sleep !== undefined && p.limit_sleep !== null) ? p.limit_sleep : 60.0;
+      document.getElementById("producer-daily-limit").value = (p.daily_request_limit !== undefined && p.daily_request_limit !== null) ? p.daily_request_limit : "";
+      
+      document.getElementById("producer-min-rank").value = (p.min_rank !== null && p.min_rank !== undefined) ? p.min_rank : "";
+      document.getElementById("producer-max-rank").value = (p.max_rank !== null && p.max_rank !== undefined) ? p.max_rank : "";
+      document.getElementById("producer-min-duration").value = (p.min_duration ? Math.round(p.min_duration / 60) : "");
+      document.getElementById("producer-max-duration").value = (p.max_duration ? Math.round(p.max_duration / 60) : "");
+      document.getElementById("producer-lobby-type").value = (p.lobby_type !== null && p.lobby_type !== undefined) ? p.lobby_type : "";
+      document.getElementById("producer-game-mode").value = (p.game_mode !== null && p.game_mode !== undefined) ? p.game_mode : "";
+      isProducerFormInitialized = true;
+    }
+
+    function resetEnricherForm() {
+      if (currentConfig && currentConfig.enricher) {
+        populateEnricherForm(currentConfig.enricher);
+        showToast("Поля обогатителя восстановлены из базы данных");
+      }
+    }
+
+    function resetProducerForm() {
+      if (currentConfig && currentConfig.producer) {
+        populateProducerForm(currentConfig.producer);
+        showToast("Поля сборщика восстановлены из базы данных");
+      }
+    }
+
+    // --- Загрузка и рендер статистики ---
+    async function fetchStats() {
+      try {
+        const res = await fetch("/admin/api/stats");
+        if (res.status === 401) {
+          document.getElementById("auth-screen").classList.remove("hidden");
+          return;
+        }
+        if (!res.ok) throw new Error("Сбой загрузки данных");
+        const data = await res.json();
+        currentConfig = data;
+        renderDashboard(data);
+      } catch (err) {
+        console.error("fetchStats error:", err);
+      }
+    }
+
+    function renderDashboard(data) {
+      const c = data.counts;
+      const p = data.producer;
+      const e = data.enricher;
+
+      // 1. Очередь новых матчей (OpenDota)
+      document.getElementById("raw-count").innerText = c.raw_total.toLocaleString();
+      document.getElementById("producer-buffer-limit").innerText = c.producer_buffer_size.toLocaleString();
+      document.getElementById("raw-pct").innerText = c.raw_buffer_pct + "%";
+      document.getElementById("raw-progress").style.width = c.raw_buffer_pct + "%";
+      document.getElementById("last-match-id").innerText = p.last_match_id ? p.last_match_id.toLocaleString() : "—";
+      
+      const pBadge = document.getElementById("producer-state-badge");
+      pBadge.innerText = p.status === "DAILY_LIMIT_EXCEEDED" ? "ЛИМИТ ДНЯ" : p.status;
+      pBadge.className = "card-badge " + (
+        p.status === "COLLECTING" ? "badge-success" : 
+        (p.status === "DAILY_LIMIT_EXCEEDED" ? "badge-warning" : 
+        (p.status === "WAIT_FOR_LIMITS" ? "badge-warning" : ""))
+      );
+
+      // 2. Хранилище Stratz и статус созревания реплеев
+      document.getElementById("enriched-count").innerText = c.enriched_total.toLocaleString();
+      document.getElementById("enriched-max-limit").innerText = (c.enriched_max_matches !== undefined && c.enriched_max_matches !== null) ? c.enriched_max_matches.toLocaleString() : "0";
+      document.getElementById("enriched-pct").innerText = (c.enriched_pct !== null && c.enriched_pct !== undefined ? c.enriched_pct + "%" : "0%");
+      document.getElementById("enriched-progress").style.width = (c.enriched_pct || 0) + "%";
+
+      // Баннер ожидания созревания
+      const matBanner = document.getElementById("maturation-banner");
+      const matText = document.getElementById("maturation-banner-text");
+      const matBadge = document.getElementById("maturation-ripe-badge");
+
+      if (c.ripe_count > 0) {
+        matBanner.style.background = "rgba(16, 185, 129, 0.1)";
+        matBanner.style.borderColor = "rgba(16, 185, 129, 0.3)";
+        matBanner.style.color = "#a7f3d0";
+        matText.innerText = "⚡ Реплеи созрели и готовы к обработке";
+        matBadge.innerText = c.ripe_count.toLocaleString() + " готово" + (e.min_age_hours === 0 ? " (0 ч)" : "");
+        matBadge.className = "card-badge badge-success";
+      } else if (c.raw_total > 0) {
+        matBanner.style.background = "rgba(251, 191, 36, 0.1)";
+        matBanner.style.borderColor = "rgba(251, 191, 36, 0.3)";
+        matBanner.style.color = "#fde68a";
+        matText.innerText = `⏳ Ожидание созревания реплеев (парсинг серверами Dota 2) — зреет ${c.unripe_count.toLocaleString()}`;
+        matBadge.innerText = "выдержка ≥ " + e.min_age_hours + " ч";
+        matBadge.className = "card-badge badge-warning";
+      } else {
+        matBanner.style.background = "rgba(255, 255, 255, 0.03)";
+        matBanner.style.borderColor = "var(--border-subtle)";
+        matBanner.style.color = "var(--text-muted)";
+        matText.innerText = "Очередь пуста • Ожидание новых матчей от сборщика";
+        matBadge.innerText = "0 в очереди";
+        matBadge.className = "card-badge";
+      }
+
+      // 3. Статусы сервисов
+      const pStatusText = p.status === "DAILY_LIMIT_EXCEEDED" ? "ЛИМИТ ДНЯ" : p.status;
+      document.getElementById("producer-worker-badge").innerText = (p.running ? "▶ " : "⏸ ") + pStatusText;
+      document.getElementById("producer-worker-badge").className = "card-badge " + (
+        !p.running ? "badge-danger" : 
+        (p.status === "DAILY_LIMIT_EXCEEDED" ? "badge-warning" : "badge-success")
+      );
+
+      const eStatusText = e.status === "DAILY_LIMIT_EXCEEDED" ? "ЛИМИТ ДНЯ" : e.status;
+      document.getElementById("enricher-worker-badge").innerText = (e.running ? "▶ " : "⏸ ") + eStatusText;
+      document.getElementById("enricher-worker-badge").className = "card-badge " + (
+        !e.running ? "badge-danger" : 
+        (e.status === "DAILY_LIMIT_EXCEEDED" ? "badge-warning" : "badge-success")
+      );
+      document.getElementById("last-update-time").innerText = new Date().toLocaleTimeString();
+
+      // Дневные счетчики воркеров
+      const pDailyLimit = p.daily_request_limit;
+      const pDailyCount = p.daily_requests_count || 0;
+      const pDailyEl = document.getElementById("producer-daily-usage-text");
+      if (pDailyEl) {
+        pDailyEl.innerText = `${pDailyCount.toLocaleString()} / ${pDailyLimit ? pDailyLimit.toLocaleString() : "без лимита"}`;
+      }
+      const pDailyTag = document.getElementById("producer-daily-status-tag");
+      if (pDailyTag) {
+        if (pDailyLimit && pDailyCount >= pDailyLimit) {
+          pDailyTag.innerHTML = `<span class="card-badge badge-warning">Исчерпан</span>`;
+        } else {
+          pDailyTag.innerHTML = ``;
+        }
+      }
+
+      const eDailyLimit = e.daily_request_limit;
+      const eDailyCount = e.daily_requests_count || 0;
+      const eDailyEl = document.getElementById("enricher-daily-usage-text");
+      if (eDailyEl) {
+        eDailyEl.innerText = `${eDailyCount.toLocaleString()} / ${eDailyLimit ? eDailyLimit.toLocaleString() : "без лимита"}`;
+      }
+      const eDailyTag = document.getElementById("enricher-daily-status-tag");
+      if (eDailyTag) {
+        if (eDailyLimit && eDailyCount >= eDailyLimit) {
+          eDailyTag.innerHTML = `<span class="card-badge badge-warning">Исчерпан</span>`;
+        } else {
+          eDailyTag.innerHTML = ``;
+        }
+      }
+      document.getElementById("last-update-time").innerText = new Date().toLocaleTimeString();
+
+      // Статусы и переключатели активности воркеров
+      document.getElementById("enricher-running-toggle").checked = Boolean(e.running);
+      document.getElementById("enricher-header-badge").innerText = e.running ? "Запущен" : "На паузе";
+      document.getElementById("enricher-header-badge").className = "card-badge " + (e.running ? "badge-success" : "badge-danger");
+
+      document.getElementById("producer-running-toggle").checked = Boolean(p.running);
+      document.getElementById("producer-header-badge").innerText = p.running ? "Запущен" : "На паузе";
+      document.getElementById("producer-header-badge").className = "card-badge " + (p.running ? "badge-success" : "badge-danger");
+
+      // 4. Счётчики обращений к внешним API (OpenDota и Stratz)
+      if (data.metrics) {
+        const od = data.metrics.opendota || {};
+        const st = data.metrics.stratz || {};
+
+        document.getElementById("metric-opendota-total").innerText = (od.total_requests || 0).toLocaleString();
+        document.getElementById("metric-opendota-200").innerText = (od.successful_requests || 0).toLocaleString();
+        document.getElementById("metric-opendota-429").innerText = (od.rate_limit_hits || 0).toLocaleString();
+        document.getElementById("metric-opendota-errors").innerText = (od.error_requests || 0).toLocaleString();
+        document.getElementById("metric-opendota-last").innerText = od.last_request_at ? od.last_request_at.split(".")[0] : "—";
+        const odBadge = document.getElementById("metric-opendota-status");
+        if (od.rate_limit_hits > 0) {
+          odBadge.innerText = "Лимит (429)";
+          odBadge.className = "card-badge badge-warning";
+        } else if (od.error_requests > 0) {
+          odBadge.innerText = "Ошибки";
+          odBadge.className = "card-badge badge-danger";
+        } else {
+          odBadge.innerText = "OK";
+          odBadge.className = "card-badge badge-success";
+        }
+
+        document.getElementById("metric-stratz-total").innerText = (st.total_requests || 0).toLocaleString();
+        document.getElementById("metric-stratz-200").innerText = (st.successful_requests || 0).toLocaleString();
+        document.getElementById("metric-stratz-429").innerText = (st.rate_limit_hits || 0).toLocaleString();
+        document.getElementById("metric-stratz-errors").innerText = (st.error_requests || 0).toLocaleString();
+        document.getElementById("metric-stratz-last").innerText = st.last_request_at ? st.last_request_at.split(".")[0] : "—";
+        const stBadge = document.getElementById("metric-stratz-status");
+        if (st.rate_limit_hits > 0) {
+          stBadge.innerText = "Лимит (429)";
+          stBadge.className = "card-badge badge-warning";
+        } else if (st.error_requests > 0) {
+          stBadge.innerText = "Ошибки";
+          stBadge.className = "card-badge badge-danger";
+        } else {
+          stBadge.innerText = "OK";
+          stBadge.className = "card-badge badge-success";
+        }
+      }
+
+      // Поля форм заполняются ТОЛЬКО при первой загрузке данных
+      if (!isEnricherFormInitialized && e) {
+        populateEnricherForm(e);
+      }
+      if (!isProducerFormInitialized && p) {
+        populateProducerForm(p);
+      }
+    }
+
+    // --- Переключение состояния воркеров ---
+    async function toggleEnricherRunning() {
+      const running = document.getElementById("enricher-running-toggle").checked;
+      await fetch("/admin/api/config/enricher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ running })
+      });
+      showToast(running ? "Обогатитель запущен" : "Обогатитель поставлен на паузу");
+      fetchStats();
+    }
+
+    async function toggleProducerRunning() {
+      const running = document.getElementById("producer-running-toggle").checked;
+      await fetch("/admin/api/config/producer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ running })
+      });
+      showToast(running ? "Сборщик запущен" : "Сборщик поставлен на паузу");
+      fetchStats();
+    }
+
+    // --- Сохранение настроек воркеров ---
+    let pendingSaveEnricherBody = null;
+
+    function promptDataLossModal(currentTotal, newMax, excess, body) {
+      pendingSaveEnricherBody = body;
+      document.getElementById("confirm-current-count").innerText = currentTotal.toLocaleString() + " матчей";
+      document.getElementById("confirm-new-limit").innerText = newMax.toLocaleString() + " матчей";
+      document.getElementById("confirm-excess-count").innerText = excess.toLocaleString() + " старых матчей";
+      document.getElementById("confirm-modal").style.display = "flex";
+    }
+
+    async function closeConfirmModal(confirmed) {
+      document.getElementById("confirm-modal").style.display = "none";
+      if (!confirmed) {
+        if (currentConfig && currentConfig.enricher) {
+          document.getElementById("enricher-max-matches").value = currentConfig.enricher.max_enriched_matches;
+        }
+        showToast("Изменение лимита отменено. Все данные сохранены.");
+        pendingSaveEnricherBody = null;
+        return;
+      }
+      if (pendingSaveEnricherBody) {
+        await executeEnricherSave(pendingSaveEnricherBody);
+        pendingSaveEnricherBody = null;
+      }
+    }
+
+    async function executeEnricherSave(body) {
+      const res = await fetch("/admin/api/config/enricher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        showToast("Параметры Stratz успешно сохранены!");
+        if (body.min_age_hours !== undefined) document.getElementById("enricher-min-age").value = body.min_age_hours;
+        if (body.max_enriched_matches !== undefined) document.getElementById("enricher-max-matches").value = body.max_enriched_matches;
+        if (body.daily_request_limit !== undefined) document.getElementById("enricher-daily-limit").value = body.daily_request_limit || "";
+        if (body.chunk_delay !== undefined) document.getElementById("enricher-chunk-delay").value = body.chunk_delay;
+        if (body.stratz_token !== undefined) document.getElementById("stratz-token-input").value = body.stratz_token;
+        await fetchStats();
+      } else {
+        const errData = await res.json().catch(() => ({ detail: "Ошибка сохранения" }));
+        showToast(errData.detail || "Ошибка сохранения", true);
+      }
+    }
+
+    async function saveEnricherConfig() {
+      const tokenVal = document.getElementById("stratz-token-input").value.trim();
+      const minAge = parseNum(document.getElementById("enricher-min-age").value, 6.0, true, 0.0);
+      const targetMax = parseNum(document.getElementById("enricher-max-matches").value, 1000, false, 0);
+      const dailyLimit = parseNum(document.getElementById("enricher-daily-limit").value, 0, false, 0);
+      const chunkDelay = parseNum(document.getElementById("enricher-chunk-delay").value, 0.5, true, 0.0);
+
+      const body = {
+        stratz_token: tokenVal,
+        min_age_hours: minAge,
+        max_enriched_matches: targetMax,
+        daily_request_limit: dailyLimit,
+        chunk_delay: chunkDelay,
+      };
+
+      const currentTotal = (currentConfig && currentConfig.counts) ? currentConfig.counts.enriched_total : 0;
+
+      // Проверка на уменьшение лимита ниже текущего количества сохранённых матчей
+      // При 0 лимите удаляются все накопленные матчи
+      if (targetMax >= 0 && currentTotal > targetMax) {
+        const excess = currentTotal - targetMax;
+        promptDataLossModal(currentTotal, targetMax, excess, body);
+        return;
+      }
+
+      await executeEnricherSave(body);
+    }
+
+    async function saveProducerConfig() {
+      const apiKeyVal = document.getElementById("producer-api-key").value.trim();
+      const bufferSize = parseNum(document.getElementById("producer-buffer-size").value, 1000, false, 10);
+      const delay = parseNum(document.getElementById("producer-delay").value, 1.2, true, 0.0);
+      const idleDelay = parseNum(document.getElementById("producer-idle-delay").value, 2.0, true, 0.1);
+      const limitSleep = parseNum(document.getElementById("producer-limit-sleep").value, 60.0, true, 0.1);
+      const dailyLimit = parseNum(document.getElementById("producer-daily-limit").value, 0, false, 0);
+
+      const minRankVal = document.getElementById("producer-min-rank").value;
+      const maxRankVal = document.getElementById("producer-max-rank").value;
+      const minDurMinutes = parseNum(document.getElementById("producer-min-duration").value, null, false, 0);
+      const maxDurMinutes = parseNum(document.getElementById("producer-max-duration").value, null, false, 0);
+      const lobbyTypeVal = document.getElementById("producer-lobby-type").value;
+      const gameModeVal = document.getElementById("producer-game-mode").value;
+
+      const body = {
+        api_key: apiKeyVal,
+        buffer_size: bufferSize,
+        delay: delay,
+        idle_delay: idleDelay,
+        limit_sleep: limitSleep,
+        daily_request_limit: dailyLimit,
+        min_rank: minRankVal !== "" ? parseInt(minRankVal, 10) : 0,
+        max_rank: maxRankVal !== "" ? parseInt(maxRankVal, 10) : 0,
+        min_duration: minDurMinutes ? minDurMinutes * 60 : 0,
+        max_duration: maxDurMinutes ? maxDurMinutes * 60 : 0,
+        lobby_type: lobbyTypeVal !== "" ? parseInt(lobbyTypeVal, 10) : -1,
+        game_mode: gameModeVal !== "" ? parseInt(gameModeVal, 10) : -1,
+      };
+
+      const res = await fetch("/admin/api/config/producer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        showToast("Параметры OpenDota и фильтры успешно сохранены!");
+        if (body.buffer_size !== undefined) document.getElementById("producer-buffer-size").value = body.buffer_size;
+        if (body.delay !== undefined) document.getElementById("producer-delay").value = body.delay;
+        if (body.idle_delay !== undefined) document.getElementById("producer-idle-delay").value = body.idle_delay;
+        if (body.limit_sleep !== undefined) document.getElementById("producer-limit-sleep").value = body.limit_sleep;
+        if (body.daily_request_limit !== undefined) document.getElementById("producer-daily-limit").value = body.daily_request_limit || "";
+        if (body.api_key !== undefined) document.getElementById("producer-api-key").value = body.api_key;
+        await fetchStats();
+      } else {
+        const errData = await res.json().catch(() => ({ detail: "Ошибка сохранения" }));
+        showToast(errData.detail || "Ошибка сохранения", true);
+      }
+    }
+
+    async function resetWorkerDailyLimit(workerType) {
+      const workerTitle = workerType === "producer" ? "сборщика OpenDota" : "обогатителя Stratz";
+      if (!confirm(`Сбросить дневной лимит запросов для ${workerTitle}?`)) return;
+      try {
+        const res = await fetch(`/admin/api/config/${workerType}/reset-daily`, {
+          method: "POST"
+        });
+        if (res.ok) {
+          showToast(`Дневной счётчик запросов ${workerTitle} сброшен, работа возобновлена!`);
+          await fetchStats();
+        } else {
+          showToast("Ошибка при сбросе дневного счётчика", true);
+        }
+      } catch (err) {
+        showToast("Сетевая ошибка при сбросе счётчика: " + err, true);
+      }
+    }
+
+    async function resetApiMetrics() {
+      if (!confirm("Сбросить счётчики запросов к OpenDota и Stratz?")) return;
+      try {
+        const res = await fetch("/admin/api/metrics/reset", { method: "POST" });
+        if (res.ok) {
+          showToast("Счётчики запросов сброшены");
+          fetchStats();
+        } else {
+          showToast("Ошибка сброса счётчиков", true);
+        }
+      } catch (err) {
+        showToast("Сетевой сбой: " + err, true);
+      }
+    }
+
+    async function testStratzToken() {
+      const token = document.getElementById("stratz-token-input").value.trim();
+      const resEl = document.getElementById("token-test-result");
+      resEl.style.display = "block";
+      resEl.innerText = "Проверка соединения со Stratz...";
+      resEl.style.color = "var(--text-muted)";
+
+      try {
+        const res = await fetch("/admin/api/test-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token })
+        });
+        const data = await res.json();
+        resEl.innerText = data.message;
+        resEl.style.color = data.valid ? "var(--emerald)" : "var(--rose)";
+      } catch (err) {
+        resEl.innerText = "Ошибка проверки: " + err;
+        resEl.style.color = "var(--rose)";
+      }
+    }
+
+    // --- Управление API ключами ---
+    async function loadApiKeys() {
+      try {
+        const res = await fetch("/admin/api/keys");
+        if (res.status === 401) {
+          document.getElementById("auth-screen").classList.remove("hidden");
+          return;
+        }
+        const data = await res.json();
+        document.getElementById("keys-count-badge").innerText = data.count + " ключей";
+
+        const tbody = document.getElementById("keys-table-body");
+        if (!data.keys || data.keys.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-dim); padding: 24px;">Нет активных ключей. Создайте новый!</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.keys.map(k => `
+          <tr>
+            <td style="font-weight: 600;">${escapeHtml(k.name)}</td>
+            <td>
+              <div class="key-badge">
+                <span>${k.key}</span>
+                <button class="btn btn-secondary btn-icon" style="padding: 2px 6px; font-size: 11px;" onclick="copyKey('${k.key}')" title="Скопировать">📋</button>
+              </div>
+            </td>
+            <td style="color: var(--text-dim); font-size: 12px;">${k.created_at || '—'}</td>
+            <td><span class="card-badge badge-success">Активен</span></td>
+            <td style="text-align: right;">
+              <button class="btn btn-danger btn-sm" onclick="deleteApiKey('${k.key}')">Удалить</button>
+            </td>
+          </tr>
+        `).join("");
+
+        if (data.keys.length > 0) {
+          const sampleKey = data.keys[0].key;
+          document.getElementById("curl-example").innerText = `curl -H "X-API-Key: ${sampleKey}" "http://localhost:8000/api/v1/matches?limit=50&offset=0"`;
+        }
+      } catch (err) {
+        console.error("Ошибка загрузки ключей:", err);
+      }
+    }
+
+    async function generateApiKey() {
+      const nameInput = document.getElementById("new-key-name");
+      const name = nameInput.value.trim() || "Клиентский ключ";
+      try {
+        const res = await fetch("/admin/api/keys", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name })
+        });
+        const data = await res.json();
+        nameInput.value = "";
+        showToast("Сгенерирован новый API ключ: " + data.key.key);
+        loadApiKeys();
+      } catch (err) {
+        showToast("Ошибка при создании ключа", true);
+      }
+    }
+
+    async function deleteApiKey(key) {
+      if (!confirm("Отозвать этот API ключ? Доступ по нему будет мгновенно заблокирован.")) return;
+      try {
+        await fetch("/admin/api/keys/" + encodeURIComponent(key), { method: "DELETE" });
+        showToast("Ключ успешно удалён");
+        loadApiKeys();
+      } catch (err) {
+        showToast("Ошибка при удалении ключа", true);
+      }
+    }
+
+    function copyKey(key) {
+      navigator.clipboard.writeText(key).then(() => {
+        showToast("API ключ скопирован в буфер обмена!");
+      });
+    }
+
+    // --- Живой фид обогащённых матчей ---
+    async function loadRecentMatches() {
+      const tbody = document.getElementById("feed-table-body");
+      try {
+        const res = await fetch("/admin/api/recent-matches?limit=15");
+        if (res.status === 401) {
+          document.getElementById("auth-screen").classList.remove("hidden");
+          return;
+        }
+        const data = await res.json();
+        recentMatchesCache = data.matches || [];
+
+        if (recentMatchesCache.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-dim); padding: 24px;">В хранилище пока нет обогащённых матчей. Они появятся после прохождения созревания.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = recentMatchesCache.map((m, idx) => {
+          const matchId = m.match_id || m.id;
+          const duration = m.durationSeconds ? `${Math.floor(m.durationSeconds / 60)}:${String(m.durationSeconds % 60).padStart(2, '0')}` : '—';
+          const radiantWin = m.didRadiantWin !== undefined ? m.didRadiantWin : (m.radiant_win !== undefined ? m.radiant_win : null);
+          const winnerTag = radiantWin === true ? '<span class="card-badge badge-success">Radiant</span>' : (radiantWin === false ? '<span class="card-badge badge-danger">Dire</span>' : '<span class="card-badge">—</span>');
+          const score = (m.radiantKills !== undefined && m.direKills !== undefined) ? `${m.radiantKills} : ${m.direKills}` : '—';
+          const collectedAt = m.collected_at ? m.collected_at.replace("T", " ") : "—";
+
+          return `
+            <tr>
+              <td><strong style="color: var(--cyan); font-family: 'JetBrains Mono', monospace;">#${matchId}</strong></td>
+              <td>${winnerTag}</td>
+              <td style="font-family: 'JetBrains Mono', monospace;">${duration}</td>
+              <td style="font-family: 'JetBrains Mono', monospace;">${score}</td>
+              <td style="color: var(--text-dim); font-size: 12px;">${collectedAt}</td>
+              <td style="text-align: right;">
+                <button class="btn btn-secondary btn-sm" onclick="viewMatchJson(${idx})">Просмотр JSON 🔍</button>
+              </td>
+            </tr>
+          `;
+        }).join("");
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--rose); padding: 24px;">Ошибка загрузки фида: ${err}</td></tr>`;
+      }
+    }
+
+    function viewMatchJson(idx) {
+      const match = recentMatchesCache[idx];
+      if (!match) return;
+      document.getElementById("modal-match-id").innerText = "#" + (match.match_id || match.id);
+      document.getElementById("modal-json-content").innerText = JSON.stringify(match, null, 2);
+      document.getElementById("json-modal").classList.add("show");
+    }
+
+    function closeJsonModal(e) {
+      document.getElementById("json-modal").classList.remove("show");
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.innerText = text;
+      return div.innerHTML;
+    }
+
+    // --- Автоматический запуск ---
+    checkAuth();
+    setInterval(() => {
+      // Авто-обновление статистики если экран авторизации скрыт
+      if (document.getElementById("auth-screen").classList.contains("hidden")) {
+        fetchStats();
+      }
+    }, 4000);
+  </script>
+</body>
+</html>
