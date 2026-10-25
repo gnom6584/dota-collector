@@ -190,12 +190,6 @@ def filter_match(
     validator: Optional[Callable[[PublicMatch], bool]] = None,
 ) -> bool:
     """Проверяет соответствие матча OpenDota критериям фильтрации."""
-    avg_rank = m.get("avg_rank_tier")
-    if avg_rank is not None:
-        if min_rank is not None and min_rank > 0 and avg_rank < min_rank:
-            return False
-        if max_rank is not None and max_rank > 0 and avg_rank > max_rank:
-            return False
     dur = m.get("duration")
     if min_duration is not None and min_duration > 0:
         if dur is None or dur < min_duration:
