@@ -191,11 +191,10 @@ def filter_match(
 ) -> bool:
     """Проверяет соответствие матча OpenDota критериям фильтрации."""
     avg_rank = m.get("avg_rank_tier")
-    if min_rank is not None and min_rank > 0:
-        if avg_rank is None or avg_rank < min_rank:
+    if avg_rank is not None:
+        if min_rank is not None and min_rank > 0 and avg_rank < min_rank:
             return False
-    if max_rank is not None and max_rank > 0:
-        if avg_rank is None or avg_rank > max_rank:
+        if max_rank is not None and max_rank > 0 and avg_rank > max_rank:
             return False
     dur = m.get("duration")
     if min_duration is not None and min_duration > 0:
@@ -292,10 +291,14 @@ def step(
                 logger.info("Буфер raw_matches заполнен (%d/%d матчей). Переход Collecting -> Idle.", current_count, buffer_size)
                 return Idle(last_match_id=last_id)
 
-            # 2. Сетевой запрос к OpenDota API
+            # 2. Сетевой запрос к OpenDota API (с серверной фильтрацией по рангу)
+            req_min_rank = min_rank if (min_rank is not None and min_rank > 0) else None
+            req_max_rank = max_rank if (max_rank is not None and max_rank > 0) else None
             try:
                 raw_matches = client.public_matches(
                     less_than_match_id=last_id,
+                    min_rank=req_min_rank,
+                    max_rank=req_max_rank,
                 )
                 increment_daily_requests(conn, "producer_config")
                 if record_api_request:
