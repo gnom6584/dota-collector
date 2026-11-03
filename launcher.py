@@ -1,59 +1,112 @@
-"""Лаунчер пайплайна сбора и обогащения матчей Dota 2 и веб-сервера FastAPI."""
-
 from __future__ import annotations
 
+import argparse
+import logging
+import multiprocessing
 import signal
-import subprocess
 import sys
 import time
+from typing import Any
 
-SERVICES = [
-    ("Producer (OpenDota)", [sys.executable, "-m", "src.workers.run_match_producer"]),
-    ("Enricher (Stratz)", [sys.executable, "-m", "src.workers.run_match_enricher"]),
-    ("API & Admin Panel", [sys.executable, "-m", "src.api.app"]),
-]
+import uvicorn
+
+from apps.admin.app import create_app
+from apps.admin.config import AdminConfig
+from apps.match_collector.config import AppConfig
+from apps.match_collector.runners import (
+    run_match_enricher,
+    run_public_collector,
+    run_storage_writer,
+)
+
+logger = logging.getLogger("launcher")
+
+
+def _setup_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] [%(processName)s] %(name)s: %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+        force=True,
+    )
+
+
+def run_admin_server(config: AdminConfig) -> None:
+    """Запускает HTTP-сервер панели управления (Uvicorn)."""
+    _setup_logging()
+    app = create_app(admin_config=config)
+    logger.info("Admin control plane starting on http://%s:%d", config.host, config.port)
+    uvicorn.run(app, host=config.host, port=config.port, log_config=None)
 
 
 def main() -> None:
-    names = ", ".join(name for name, _ in SERVICES)
-    print(f"[launcher] Запуск сервисов: {names}")
-    print("[launcher] -> Панель управления: http://localhost:8000/admin")
-    print("[launcher] -> Документация API:  http://localhost:8000/docs")
+    """Универсальный процесс-супервизор для запуска воркеров и панели управления."""
+    parser = argparse.ArgumentParser(description="Dota 2 Match Collector & Control Plane Launcher")
+    parser.add_argument("--workers-only", action="store_true", help="Launch only match collection workers")
+    parser.add_argument("--admin-only", action="store_true", help="Launch only admin control plane")
+    args = parser.parse_args()
 
-    procs = [(name, subprocess.Popen(cmd)) for name, cmd in SERVICES]
+    _setup_logging()
+    app_config = AppConfig()
+    admin_config = AdminConfig(app_config=app_config)
 
-    def handle_signal(sig, frame):
-        print(f"\n[launcher] Получен сигнал {sig}. Завершаем работу сервисов...")
-        sys.exit(0)
+    processes: list[multiprocessing.Process] = []
+
+    if not args.admin_only:
+        p_collector = multiprocessing.Process(
+            target=run_public_collector,
+            args=(app_config,),
+            name="public_match_collector",
+        )
+        p_enricher = multiprocessing.Process(
+            target=run_match_enricher,
+            args=(app_config,),
+            name="match_enricher",
+        )
+        p_writer = multiprocessing.Process(
+            target=run_storage_writer,
+            args=(app_config,),
+            name="match_storage_writer",
+        )
+        processes.extend([p_collector, p_enricher, p_writer])
+
+    if not args.workers_only:
+        p_admin = multiprocessing.Process(
+            target=run_admin_server,
+            args=(admin_config,),
+            name="admin_control_plane",
+        )
+        processes.append(p_admin)
+
+    logger.info("Launching %d services: %s", len(processes), ", ".join(p.name for p in processes))
+
+    for p in processes:
+        p.start()
+
+    def handle_signal(sig: int, frame: Any) -> None:
+        logger.info("Termination signal %s received. Shutting down services...", sig)
+        for proc in processes:
+            if proc.is_alive():
+                proc.terminate()
 
     signal.signal(signal.SIGINT, handle_signal)
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, handle_signal)
 
     try:
-        # Мониторим процессы: если один упал или завершился — выходим
-        while True:
-            for name, p in procs:
-                code = p.poll()
-                if code is not None:
-                    print(f"\n[launcher] Процесс '{name}' завершился (код {code}). Завершаем работу...")
-                    return
+        while any(p.is_alive() for p in processes):
             time.sleep(0.5)
     except KeyboardInterrupt:
         pass
     finally:
-        print("\n[launcher] Остановка процессов...")
-        for _, p in procs:
-            if p.poll() is None:
-                p.terminate()
-
-        for _, p in procs:
-            try:
-                p.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                p.kill()
-
-        print("[launcher] Все процессы остановлены.")
+        for proc in processes:
+            if proc.is_alive():
+                proc.terminate()
+        for proc in processes:
+            proc.join(timeout=5)
+            if proc.is_alive():
+                proc.kill()
+        logger.info("All services shut down successfully.")
 
 
 if __name__ == "__main__":

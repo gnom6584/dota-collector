@@ -4,11 +4,14 @@ __pycache__/
 .git/
 .gitignore
 .vscode/
-tests/
+.idea/
+.agents/
+.env
+.venv/
+venv/
+env/
 data/
 *.db
 *.db-wal
 *.db-shm
 *.log
-*.ipynb
-REPORT.md

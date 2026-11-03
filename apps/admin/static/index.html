@@ -1,0 +1,1831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dota 2 Collector // Control Plane</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #111827;
+      --card-hover: #162035;
+      --border: #1f293d;
+      --border-bright: #334155;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --primary: #00f0ff;
+      --primary-glow: rgba(0, 240, 255, 0.25);
+      --success: #10b981;
+      --success-glow: rgba(16, 185, 129, 0.25);
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --danger-glow: rgba(239, 68, 68, 0.25);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(ellipse at 15% 0%, rgba(0, 240, 255, 0.05) 0%, transparent 50%),
+        radial-gradient(ellipse at 85% 10%, rgba(139, 92, 246, 0.05) 0%, transparent 50%);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+      padding-bottom: 60px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px 20px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 24px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--primary);
+      box-shadow: 0 0 12px var(--primary);
+      animation: pulse 2s infinite ease-in-out;
+    }
+
+    .brand-title {
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: 1.5px;
+      color: var(--text);
+      text-transform: uppercase;
+    }
+
+    .brand-title span {
+      color: var(--primary);
+    }
+
+    .controls-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--success);
+      border: 1px solid var(--success);
+    }
+
+    .status-indicator.offline {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border-bright);
+      background: #1e293b;
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+    }
+
+    .btn:hover {
+      background: #2b394f;
+      border-color: var(--primary);
+      color: var(--primary);
+      box-shadow: 0 0 10px var(--primary-glow);
+    }
+
+    .btn-primary {
+      background: rgba(0, 240, 255, 0.15);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary);
+      color: #000;
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .btn-danger:hover {
+      background: var(--danger);
+      color: #fff;
+      box-shadow: 0 0 10px var(--danger-glow);
+    }
+
+    .btn-warning {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: var(--warning);
+      color: var(--warning);
+    }
+
+    .btn-warning:hover {
+      background: var(--warning);
+      color: #000;
+    }
+
+    .btn-sm {
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+
+    /* Grid Layouts */
+    .grid-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .grid-two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .grid-three {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 960px) {
+      .grid-two, .grid-three {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Cards */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--border-bright), transparent);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .card-title {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .metric-value {
+      font-family: var(--mono);
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+
+    .metric-sub {
+      font-size: 12px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+
+    /* Progress Bar */
+    .progress-bar-bg {
+      height: 6px;
+      width: 100%;
+      background: #1e293b;
+      border-radius: 3px;
+      margin-top: 12px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--primary);
+      box-shadow: 0 0 8px var(--primary);
+      border-radius: 3px;
+      transition: width 0.4s ease;
+    }
+
+    .progress-bar-fill.warning {
+      background: var(--warning);
+      box-shadow: 0 0 8px var(--warning);
+    }
+
+    .progress-bar-fill.danger {
+      background: var(--danger);
+      box-shadow: 0 0 8px var(--danger);
+    }
+
+    /* Status Badges */
+    .badge {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-running {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--success);
+      border: 1px solid var(--success);
+    }
+
+    .badge-idle {
+      background: rgba(0, 240, 255, 0.15);
+      color: var(--primary);
+      border: 1px solid var(--primary);
+    }
+
+    .badge-waiting {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--warning);
+      border: 1px solid var(--warning);
+    }
+
+    .badge-disabled {
+      background: rgba(100, 116, 139, 0.2);
+      color: var(--text-dim);
+      border: 1px solid var(--text-dim);
+    }
+
+    .badge-error {
+      background: rgba(239, 68, 68, 0.2);
+      color: var(--danger);
+      border: 1px solid var(--danger);
+    }
+
+    /* Worker Details */
+    .worker-meta {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+
+    .meta-item {
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .meta-label {
+      color: var(--text-dim);
+      font-size: 11px;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    .meta-val {
+      color: var(--text);
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Error alert box */
+    .error-box {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      padding: 10px 14px;
+      border-radius: 6px;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .error-msg {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: #fca5a5;
+      word-break: break-all;
+    }
+
+    /* State JSON Viewer */
+    .state-box {
+      background: #090d16;
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: #94a3b8;
+      max-height: 120px;
+      overflow-y: auto;
+      margin-bottom: 14px;
+    }
+
+    /* Forms */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .form-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .form-input {
+      background: #090d16;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 6px var(--primary-glow);
+    }
+
+    /* Table */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    th {
+      background: #162035;
+      padding: 12px 16px;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .match-link {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .match-link:hover {
+      text-decoration: underline;
+    }
+
+    /* Modal */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .modal-backdrop.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: var(--card-bg);
+      border: 1px solid var(--border-bright);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 900px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-title {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .modal-body {
+      padding: 16px 20px;
+      overflow-y: auto;
+      font-family: var(--mono);
+      font-size: 12px;
+      background: #090d16;
+      color: #e2e8f0;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* Toast */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 2000;
+    }
+
+    .toast {
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 12px;
+      background: #1e293b;
+      border: 1px solid var(--border);
+      color: var(--text);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+      animation: slideIn 0.25s ease-out;
+    }
+
+    .toast-success {
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .toast-error {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.9); }
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Top Navigation Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-logo" id="connDot"></div>
+        <div class="brand-title">Dota 2 Pipeline <span>[Control Plane]</span></div>
+      </div>
+      <div class="controls-bar">
+        <div class="status-indicator" id="connStatus">
+          <div class="status-dot"></div>
+          <span id="connStatusText">ONLINE</span>
+        </div>
+        <button class="btn" id="refreshToggleBtn">Pause Auto-Refresh</button>
+        <button class="btn btn-primary" id="syncNowBtn">Sync Now</button>
+      </div>
+    </header>
+
+    <!-- Top Telemetry Metrics -->
+    <section class="grid-two">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Maturing Queue</div>
+          <span class="badge badge-waiting" id="queuePercent">0%</span>
+        </div>
+        <div class="metric-value" id="queueCount">0 / 0</div>
+        <div class="metric-sub" id="queueSub">Maturation incubation time: <span id="queueMaturationVal" style="color: var(--primary); font-weight: 600;">30 min</span></div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="queueBar" style="width: 0%"></div>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 14px; align-items: center;">
+          <input type="number" class="form-input" id="queueLimitInput" placeholder="New capacity" style="flex: 1; padding: 4px 8px; font-size: 11px;">
+          <button class="btn btn-sm btn-primary" id="queueSetLimitBtn">Set Capacity</button>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 8px; align-items: center;">
+          <input type="number" step="any" min="0" class="form-input" id="maturationTimeInput" placeholder="Maturation time (min)" style="flex: 1; padding: 4px 8px; font-size: 11px;">
+          <button class="btn btn-sm btn-primary" id="maturationTimeBtn">Set Time</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Storage Matches</div>
+          <span class="badge badge-running" id="storagePercent">0%</span>
+        </div>
+        <div class="metric-value" id="storageCount">0 / 0</div>
+        <div class="metric-sub" id="storageSub">Enriched SQLite records</div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="storageBar" style="width: 0%"></div>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 14px; align-items: center;">
+          <input type="number" class="form-input" id="storageLimitInput" placeholder="New capacity" style="flex: 1; padding: 4px 8px; font-size: 11px;">
+          <button class="btn btn-sm btn-primary" id="storageSetLimitBtn">Set Capacity</button>
+        </div>
+        <div style="margin-top: 8px; font-size: 11px; color: var(--text-dim); font-family: var(--mono); padding: 5px 0;">
+          Target storage table: <span style="color: var(--primary);">matches</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Workers Management Section -->
+    <section class="grid-three">
+      <!-- Public Match Collector Card -->
+      <div class="card" id="cardCollector">
+        <div class="card-header">
+          <div class="card-title">public_match_collector</div>
+          <span class="badge badge-disabled" id="collectorBadge">DISABLED</span>
+        </div>
+        
+        <div class="worker-meta">
+          <div class="meta-item">
+            <div class="meta-label">Process ID</div>
+            <div class="meta-val" id="collectorPid">-</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Worker Type</div>
+            <div class="meta-val" id="collectorType">-</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Last Updated</div>
+            <div class="meta-val" id="collectorUpdated">-</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Last Match ID</div>
+            <div class="meta-val" id="collectorCursor" style="color: var(--primary);">-</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Pending Buffer</div>
+            <div class="meta-val" id="collectorLastBoundary">-</div>
+          </div>
+        </div>
+
+        <div class="error-box" id="collectorErrorBox" style="display: none;">
+          <div class="error-msg" id="collectorErrorMsg"></div>
+          <button class="btn btn-warning btn-sm" id="collectorClearErrBtn">Clear</button>
+        </div>
+
+        <!-- Nested Collector Quota Block -->
+        <div class="worker-quota-box" style="background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-family: var(--mono); font-size: 11px; text-transform: uppercase; color: var(--text-muted);">OpenDota API Quota</span>
+            <span class="badge badge-idle" id="collectorQuotaPercent">0%</span>
+          </div>
+          <div class="metric-value" style="font-size: 22px; margin-bottom: 2px;" id="collectorQuotaUsage">0 / 0</div>
+          <div class="metric-sub" id="collectorQuotaReset">Resets: -</div>
+          <div class="progress-bar-bg" style="margin-top: 8px; margin-bottom: 12px;">
+            <div class="progress-bar-fill" id="collectorQuotaBar" style="width: 0%"></div>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="number" class="form-input" id="collectorQuotaLimitInput" placeholder="New limit" style="flex: 1; padding: 4px 8px; font-size: 11px;">
+            <button class="btn btn-sm btn-primary" id="collectorQuotaSetBtn">Set Limit</button>
+            <button class="btn btn-sm btn-warning" id="collectorQuotaResetBtn">Reset Usage</button>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-primary" id="collectorToggleBtn" style="flex: 1;">Enable Worker</button>
+        </div>
+      </div>
+
+      <!-- Match Enricher Card -->
+      <div class="card" id="cardEnricher">
+        <div class="card-header">
+          <div class="card-title">match_enricher</div>
+          <span class="badge badge-disabled" id="enricherBadge">DISABLED</span>
+        </div>
+
+        <div class="worker-meta">
+          <div class="meta-item">
+            <div class="meta-label">Process ID</div>
+            <div class="meta-val" id="enricherPid">-</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Worker Type</div>
+            <div class="meta-val" id="enricherType">-</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Last Updated</div>
+            <div class="meta-val" id="enricherUpdated">-</div>
+          </div>
+        </div>
+
+        <div class="error-box" id="enricherErrorBox" style="display: none;">
+          <div class="error-msg" id="enricherErrorMsg"></div>
+          <button class="btn btn-warning btn-sm" id="enricherClearErrBtn">Clear</button>
+        </div>
+
+        <!-- Nested Enricher Quota Block -->
+        <div class="worker-quota-box" style="background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-family: var(--mono); font-size: 11px; text-transform: uppercase; color: var(--text-muted);">Stratz GraphQL Quota</span>
+            <span class="badge badge-idle" id="enricherQuotaPercent">0%</span>
+          </div>
+          <div class="metric-value" style="font-size: 22px; margin-bottom: 2px;" id="enricherQuotaUsage">0 / 0</div>
+          <div class="metric-sub" id="enricherQuotaReset">Resets: -</div>
+          <div class="progress-bar-bg" style="margin-top: 8px; margin-bottom: 12px;">
+            <div class="progress-bar-fill" id="enricherQuotaBar" style="width: 0%"></div>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="number" class="form-input" id="enricherQuotaLimitInput" placeholder="New limit" style="flex: 1; padding: 4px 8px; font-size: 11px;">
+            <button class="btn btn-sm btn-primary" id="enricherQuotaSetBtn">Set Limit</button>
+            <button class="btn btn-sm btn-warning" id="enricherQuotaResetBtn">Reset Usage</button>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-primary" id="enricherToggleBtn" style="flex: 1;">Enable Worker</button>
+        </div>
+      </div>
+
+      <!-- Match Storage Writer Card -->
+      <div class="card" id="cardWriter">
+        <div class="card-header">
+          <div class="card-title">match_storage_writer</div>
+          <span class="badge badge-disabled" id="writerBadge">DISABLED</span>
+        </div>
+
+        <div class="worker-meta">
+          <div class="meta-item">
+            <div class="meta-label">Process ID</div>
+            <div class="meta-val" id="writerPid">-</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Worker Type</div>
+            <div class="meta-val" id="writerType">-</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Last Updated</div>
+            <div class="meta-val" id="writerUpdated">-</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Last Transaction ID</div>
+            <div class="meta-val" id="writerLastTx" style="color: var(--primary);">-</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Total Saved Matches</div>
+            <div class="meta-val" id="writerSavedMatches">-</div>
+          </div>
+        </div>
+
+        <div class="error-box" id="writerErrorBox" style="display: none;">
+          <div class="error-msg" id="writerErrorMsg"></div>
+          <button class="btn btn-warning btn-sm" id="writerClearErrBtn">Clear</button>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: auto;">
+          <button class="btn btn-primary" id="writerToggleBtn" style="flex: 1;">Enable Worker</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dynamic Worker Configuration Panel -->
+    <section class="grid-three">
+      <!-- Public Collector Config Form -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Collector Runtime Config</div>
+          <button class="btn btn-primary btn-sm" id="saveCollectorConfigBtn">Save</button>
+        </div>
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">OpenDota API Key</label>
+            <input type="password" class="form-input" id="cfgColApiKey" placeholder="Optional API Key">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Min Rank</label>
+            <input type="number" min="1" class="form-input" id="cfgColMinRank" placeholder="None">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Rank</label>
+            <input type="number" min="1" class="form-input" id="cfgColMaxRank" placeholder="None">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Min Duration (s)</label>
+            <input type="number" min="1" class="form-input" id="cfgColMinDuration" placeholder="e.g. 900">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Duration (s)</label>
+            <input type="number" min="1" class="form-input" id="cfgColMaxDuration" placeholder="e.g. 3600">
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Cluster Filter</label>
+            <input type="text" class="form-input" id="cfgColCluster" placeholder="e.g. 181, 182">
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Game Mode Filter</label>
+            <input type="text" class="form-input" id="cfgColGameMode" placeholder="e.g. 1, 22">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Cooldown (s)</label>
+            <input type="number" step="0.1" min="0.1" class="form-input" id="cfgColCooldown">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Quota Retry (s)</label>
+            <input type="number" step="0.1" min="0.1" class="form-input" id="cfgColQuotaRetry">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Rate Limit (s)</label>
+            <input type="number" step="0.1" min="0.1" class="form-input" id="cfgColRateLimit">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Error Delay (s)</label>
+            <input type="number" step="0.1" min="0.1" class="form-input" id="cfgColErrorDelay">
+          </div>
+        </div>
+      </div>
+
+      <!-- Match Enricher Config Form -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Enricher Runtime Config</div>
+          <button class="btn btn-primary btn-sm" id="saveEnricherConfigBtn">Save</button>
+        </div>
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Stratz API Token</label>
+            <input type="password" class="form-input" id="cfgEnrApiToken" placeholder="Bearer Token">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Batch Size</label>
+            <input type="number" min="1" class="form-input" id="cfgEnrBatchSize">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Cooldown (s)</label>
+            <input type="number" step="0.1" min="0.1" class="form-input" id="cfgEnrCooldown">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Idle Delay (s)</label>
+            <input type="number" step="0.1" min="0.1" class="form-input" id="cfgEnrIdleDelay">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Quota Retry (s)</label>
+            <input type="number" step="0.1" min="0.1" class="form-input" id="cfgEnrQuotaRetry">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Rate Limit (s)</label>
+            <input type="number" step="0.1" min="0.1" class="form-input" id="cfgEnrRateLimit">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Error Delay (s)</label>
+            <input type="number" step="0.1" min="0.1" class="form-input" id="cfgEnrErrorDelay">
+          </div>
+        </div>
+      </div>
+
+      <!-- Storage Writer Config Form -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Writer Runtime Config</div>
+          <button class="btn btn-primary btn-sm" id="saveWriterConfigBtn">Save</button>
+        </div>
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Cooldown (s)</label>
+            <input type="number" step="0.1" min="0.01" class="form-input" id="cfgWriCooldown">
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Idle Delay (s)</label>
+            <input type="number" step="0.1" min="0.1" class="form-input" id="cfgWriIdleDelay">
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">Error Delay (s)</label>
+            <input type="number" step="0.1" min="0.1" class="form-input" id="cfgWriErrorDelay">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Recent Enriched Matches Viewer -->
+    <section class="card">
+      <div class="card-header">
+        <div class="card-title">Recent Enriched Matches</div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="text" class="form-input" id="matchSearchInput" placeholder="Filter Match ID..." style="width: 160px; padding: 4px 8px;">
+          <button class="btn btn-sm" id="refreshMatchesBtn">Reload</button>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-family: var(--mono); font-size: 11px;">
+        <div style="color: var(--text-dim);" id="matchesPaginationInfo">Showing 0 matches</div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <label style="color: var(--text-dim);">Per page:</label>
+          <select class="form-input" id="matchesPageSizeSelect" style="padding: 3px 6px; font-size: 11px; width: 60px; background: #090d16; color: var(--text);">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          <button class="btn btn-sm" id="matchesPrevPageBtn" disabled>&larr; Prev</button>
+          <span id="matchesCurrentPage" style="color: var(--primary); font-weight: 600; min-width: 70px; text-align: center;">Page 1 / 1</span>
+          <button class="btn btn-sm" id="matchesNextPageBtn" disabled>Next &rarr;</button>
+        </div>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Match ID</th>
+              <th>Created At</th>
+              <th>Winner</th>
+              <th>Duration</th>
+              <th>Payload Size</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="matchesTableBody">
+            <tr>
+              <td colspan="6" style="text-align: center; color: var(--text-dim);">No matches loaded.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- Match Inspector Modal -->
+  <div class="modal-backdrop" id="matchModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title" id="modalTitle">Match Detail</div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-sm" id="copyJsonBtn">Copy JSON</button>
+          <button class="btn btn-sm" id="closeModalBtn">Close</button>
+        </div>
+      </div>
+      <pre class="modal-body" id="modalBody">Loading payload...</pre>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    let isAutoRefresh = true;
+    let refreshInterval = null;
+    let currentModalMatchJson = null;
+
+    function showToast(message, type = "info") {
+      const container = document.getElementById("toastContainer");
+      const toast = document.createElement("div");
+      toast.className = `toast toast-${type}`;
+      toast.innerText = message;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.remove();
+      }, 4000);
+    }
+
+    function formatTime(timestamp) {
+      if (!timestamp) return "-";
+      try {
+        const d = new Date(typeof timestamp === "number" ? timestamp * 1000 : timestamp);
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      } catch {
+        return String(timestamp);
+      }
+    }
+
+    function formatDuration(seconds) {
+      if (!seconds && seconds !== 0) return "-";
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    function getBadgeClass(status, isEnabled) {
+      if (!isEnabled) return "badge-disabled";
+      const s = (status || "").toLowerCase();
+      if (s === "running") return "badge-running";
+      if (s === "idle") return "badge-idle";
+      if (s === "waiting") return "badge-waiting";
+      if (s === "error") return "badge-error";
+      return "badge-disabled";
+    }
+
+    async function fetchStats() {
+      try {
+        const res = await fetch("/api/stats");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        renderStats(data);
+        setConnectionStatus(true);
+      } catch (err) {
+        setConnectionStatus(false);
+      }
+    }
+
+    function setConnectionStatus(online) {
+      const dot = document.getElementById("connDot");
+      const statusBox = document.getElementById("connStatus");
+      const statusText = document.getElementById("connStatusText");
+
+      if (online) {
+        statusBox.className = "status-indicator";
+        statusText.innerText = "ONLINE";
+      } else {
+        statusBox.className = "status-indicator offline";
+        statusText.innerText = "OFFLINE";
+      }
+    }
+
+    function renderStats(stats) {
+      // Queue
+      const queueMax = stats.queue_max_size || 0;
+      const queueCount = stats.queue_size || 0;
+      const queuePct = queueMax > 0 ? Math.min(100, Math.round((queueCount / queueMax) * 100)) : 0;
+      document.getElementById("queueCount").innerText = `${queueCount.toLocaleString()} / ${queueMax.toLocaleString()}`;
+      document.getElementById("queuePercent").innerText = `${queuePct}%`;
+      const queueBar = document.getElementById("queueBar");
+      queueBar.style.width = `${queuePct}%`;
+      queueBar.className = `progress-bar-fill ${queuePct > 90 ? 'danger' : queuePct > 75 ? 'warning' : ''}`;
+      const qInput = document.getElementById("queueLimitInput");
+      if (!qInput.value && document.activeElement !== qInput) {
+        qInput.placeholder = `Capacity: ${queueMax.toLocaleString()}`;
+      }
+
+      if (stats.maturation_delay_seconds !== undefined) {
+        const mins = stats.maturation_delay_seconds / 60;
+        const minsStr = Number.isInteger(mins) ? mins.toString() : mins.toFixed(1);
+        document.getElementById("queueMaturationVal").innerText = `${minsStr} min`;
+        const mInput = document.getElementById("maturationTimeInput");
+        if (mInput && !mInput.value && document.activeElement !== mInput) {
+          mInput.placeholder = `Time: ${minsStr} min`;
+        }
+      }
+
+      // Storage
+      const storageMax = stats.storage_max_matches || 0;
+      const storageCount = stats.enriched_matches_count || 0;
+      const storagePct = storageMax > 0 ? Math.min(100, Math.round((storageCount / storageMax) * 100)) : 0;
+      document.getElementById("storageCount").innerText = `${storageCount.toLocaleString()} / ${storageMax.toLocaleString()}`;
+      document.getElementById("storagePercent").innerText = `${storagePct}%`;
+      const storageBar = document.getElementById("storageBar");
+      storageBar.style.width = `${storagePct}%`;
+      storageBar.className = `progress-bar-fill ${storagePct > 90 ? 'danger' : storagePct > 75 ? 'warning' : ''}`;
+      const sInput = document.getElementById("storageLimitInput");
+      if (!sInput.value && document.activeElement !== sInput) {
+        sInput.placeholder = `Capacity: ${storageMax.toLocaleString()}`;
+      }
+
+      // Workers
+      for (const w of stats.workers || []) {
+        if (w.name === "public_match_collector") {
+          renderWorkerUI("collector", w);
+        } else if (w.name === "match_enricher") {
+          renderWorkerUI("enricher", w);
+        } else if (w.name === "match_storage_writer") {
+          renderWorkerUI("writer", w);
+        }
+      }
+    }
+
+    function renderWorkerUI(prefix, worker) {
+      const badge = document.getElementById(`${prefix}Badge`);
+      badge.className = `badge ${getBadgeClass(worker.status, worker.is_enabled)}`;
+      badge.innerText = worker.is_enabled ? worker.status.toUpperCase() : "DISABLED";
+
+      document.getElementById(`${prefix}Pid`).innerText = worker.pid || "-";
+      document.getElementById(`${prefix}Type`).innerText = (worker.worker_type || "").split(".").pop() || "-";
+      document.getElementById(`${prefix}Updated`).innerText = worker.updated_at ? formatTime(worker.updated_at) : "-";
+
+      if (prefix === "collector") {
+        const s = worker.state_summary || {};
+        const lastId = s.last_match_id ?? s.cursor_match_id;
+        document.getElementById("collectorCursor").innerText = lastId ? `#${lastId}` : "STREAM";
+        const pendingCount = Array.isArray(s.pending_matches) ? s.pending_matches.length : 0;
+        document.getElementById("collectorLastBoundary").innerText = `${pendingCount} matches`;
+      } else if (prefix === "writer") {
+        const s = worker.state_summary || {};
+        document.getElementById("writerLastTx").innerText = s.last_transaction_id != null ? `#${s.last_transaction_id}` : "-";
+        document.getElementById("writerSavedMatches").innerText = (s.total_saved_matches ?? 0).toLocaleString();
+      }
+
+      const errBox = document.getElementById(`${prefix}ErrorBox`);
+      const errMsg = document.getElementById(`${prefix}ErrorMsg`);
+      if (worker.last_error) {
+        errBox.style.display = "flex";
+        errMsg.innerText = worker.last_error;
+      } else {
+        errBox.style.display = "none";
+      }
+
+      // Nested Quota
+      const q = worker.quota;
+      if (q) {
+        const percent = q.max_units > 0 ? Math.min(100, Math.round((q.used_units / q.max_units) * 100)) : 0;
+        const resetStr = q.reset_at ? `Resets: ${formatTime(q.reset_at)}` : "Resets: Midnight UTC";
+        document.getElementById(`${prefix}QuotaUsage`).innerText = `${q.used_units.toLocaleString()} / ${q.max_units.toLocaleString()}`;
+        document.getElementById(`${prefix}QuotaPercent`).innerText = `${percent}%`;
+        document.getElementById(`${prefix}QuotaReset`).innerText = resetStr;
+        const bar = document.getElementById(`${prefix}QuotaBar`);
+        bar.style.width = `${percent}%`;
+        bar.className = `progress-bar-fill ${percent > 90 ? 'danger' : percent > 75 ? 'warning' : ''}`;
+        const input = document.getElementById(`${prefix}QuotaLimitInput`);
+        if (!input.value && document.activeElement !== input) {
+          input.placeholder = `Limit: ${q.max_units.toLocaleString()}`;
+        }
+      }
+
+      const toggleBtn = document.getElementById(`${prefix}ToggleBtn`);
+      if (worker.is_enabled) {
+        toggleBtn.innerText = "Disable Worker";
+        toggleBtn.className = "btn btn-danger";
+        toggleBtn.onclick = () => toggleWorker(worker.name, false);
+      } else {
+        toggleBtn.innerText = "Enable Worker";
+        toggleBtn.className = "btn btn-primary";
+        toggleBtn.onclick = () => toggleWorker(worker.name, true);
+      }
+
+      const clearBtn = document.getElementById(`${prefix}ClearErrBtn`);
+      clearBtn.onclick = () => clearWorkerError(worker.name);
+    }
+
+    async function toggleWorker(name, enable) {
+      const action = enable ? "enable" : "disable";
+      try {
+        const res = await fetch(`/api/workers/${name}/${action}`, { method: "POST" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        showToast(`Worker ${name} ${enable ? 'enabled' : 'disabled'}.`, "success");
+        await fetchStats();
+      } catch (err) {
+        showToast(`Failed to ${action} ${name}: ${err.message}`, "error");
+      }
+    }
+
+    async function clearWorkerError(name) {
+      try {
+        const res = await fetch(`/api/workers/${name}/clear-error`, { method: "POST" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        showToast(`Error cleared for ${name}.`, "success");
+        await fetchStats();
+      } catch (err) {
+        showToast(`Failed to clear error: ${err.message}`, "error");
+      }
+    }
+
+    async function resetQuota(name) {
+      try {
+        const res = await fetch(`/api/quotas/${name}/reset`, { method: "POST" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        showToast(`Quota '${name}' reset to 0.`, "success");
+        await fetchStats();
+      } catch (err) {
+        showToast(`Failed to reset quota: ${err.message}`, "error");
+      }
+    }
+
+    async function setQuotaLimit(name, inputId) {
+      const input = document.getElementById(inputId);
+      const val = parseInt(input.value, 10);
+      if (!val || val <= 0) {
+        showToast("Please enter a valid positive integer limit.", "error");
+        return;
+      }
+      try {
+        const res = await fetch(`/api/quotas/${name}/limit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ limit: val }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        showToast(`Quota '${name}' limit set to ${val.toLocaleString()}.`, "success");
+        input.value = "";
+        await fetchStats();
+      } catch (err) {
+        showToast(`Failed to update quota limit: ${err.message}`, "error");
+      }
+    }
+
+    async function setQueueCapacity() {
+      const input = document.getElementById("queueLimitInput");
+      const val = parseInt(input.value, 10);
+      if (!val || val <= 0) {
+        showToast("Please enter a valid positive integer queue capacity.", "error");
+        return;
+      }
+      try {
+        const res = await fetch("/api/pipeline/queue/limit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ limit: val }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        showToast(`Queue capacity updated to ${val.toLocaleString()}.`, "success");
+        input.value = "";
+        await fetchStats();
+      } catch (err) {
+        showToast(`Failed to update queue capacity: ${err.message}`, "error");
+      }
+    }
+
+    async function setMaturationTime() {
+      const input = document.getElementById("maturationTimeInput");
+      const val = parseFloat(input.value);
+      if (isNaN(val) || val < 0) {
+        showToast("Please enter a valid non-negative maturation time in minutes.", "error");
+        return;
+      }
+      try {
+        const res = await fetch("/api/pipeline/maturation-time", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ minutes: val }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        showToast(`Maturation time updated to ${val} min.`, "success");
+        input.value = "";
+        await fetchStats();
+      } catch (err) {
+        showToast(`Failed to update maturation time: ${err.message}`, "error");
+      }
+    }
+
+    async function setStorageCapacity() {
+      const input = document.getElementById("storageLimitInput");
+      const val = parseInt(input.value, 10);
+      if (!val || val <= 0) {
+        showToast("Please enter a valid positive integer storage capacity.", "error");
+        return;
+      }
+      try {
+        const res = await fetch("/api/storage/limit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ limit: val }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        showToast(`Storage capacity updated to ${val.toLocaleString()}.`, "success");
+        input.value = "";
+        await fetchStats();
+      } catch (err) {
+        showToast(`Failed to update storage capacity: ${err.message}`, "error");
+      }
+    }
+
+    async function loadConfigs() {
+      try {
+        const colRes = await fetch("/api/configs/public-collector");
+        if (colRes.ok) {
+          const col = await colRes.json();
+          document.getElementById("cfgColApiKey").value = col.api_key ?? "";
+          document.getElementById("cfgColMinRank").value = col.min_rank ?? "";
+          document.getElementById("cfgColMaxRank").value = col.max_rank ?? "";
+          document.getElementById("cfgColMinDuration").value = col.min_duration ?? "";
+          document.getElementById("cfgColMaxDuration").value = col.max_duration ?? "";
+          document.getElementById("cfgColCluster").value = col.cluster ? Array.from(col.cluster).join(", ") : "";
+          document.getElementById("cfgColGameMode").value = col.game_mode ? Array.from(col.game_mode).join(", ") : "";
+          document.getElementById("cfgColCooldown").value = col.cooldown ?? "";
+          document.getElementById("cfgColQuotaRetry").value = col.quota_retry_delay ?? "";
+          document.getElementById("cfgColRateLimit").value = col.rate_limit_delay ?? "";
+          document.getElementById("cfgColErrorDelay").value = col.error_delay ?? "";
+        }
+
+        const enrRes = await fetch("/api/configs/enricher");
+        if (enrRes.ok) {
+          const enr = await enrRes.json();
+          document.getElementById("cfgEnrApiToken").value = enr.api_token ?? "";
+          document.getElementById("cfgEnrBatchSize").value = enr.batch_size ?? "";
+          document.getElementById("cfgEnrCooldown").value = enr.cooldown ?? "";
+          document.getElementById("cfgEnrIdleDelay").value = enr.idle_delay ?? "";
+          document.getElementById("cfgEnrQuotaRetry").value = enr.quota_retry_delay ?? "";
+          document.getElementById("cfgEnrRateLimit").value = enr.rate_limit_delay ?? "";
+          document.getElementById("cfgEnrErrorDelay").value = enr.error_delay ?? "";
+        }
+
+        const wriRes = await fetch("/api/configs/storage-writer");
+        if (wriRes.ok) {
+          const wri = await wriRes.json();
+          document.getElementById("cfgWriCooldown").value = wri.cooldown ?? "";
+          document.getElementById("cfgWriIdleDelay").value = wri.idle_delay ?? "";
+          document.getElementById("cfgWriErrorDelay").value = wri.error_delay ?? "";
+        }
+      } catch (err) {
+        showToast(`Failed to load worker configs: ${err.message}`, "error");
+      }
+    }
+
+    async function saveCollectorConfig() {
+      const minRankRaw = document.getElementById("cfgColMinRank").value.trim();
+      const maxRankRaw = document.getElementById("cfgColMaxRank").value.trim();
+      const minDurRaw = document.getElementById("cfgColMinDuration").value.trim();
+      const maxDurRaw = document.getElementById("cfgColMaxDuration").value.trim();
+      const apiKeyVal = document.getElementById("cfgColApiKey").value.trim();
+      const clusterRaw = document.getElementById("cfgColCluster").value.trim();
+      const gameModeRaw = document.getElementById("cfgColGameMode").value.trim();
+
+      let minRank = null;
+      if (minRankRaw !== "") {
+        minRank = Number(minRankRaw);
+        if (!Number.isInteger(minRank) || minRank <= 0) {
+          showToast("Min Rank must be a positive integer.", "error");
+          return;
+        }
+      }
+
+      let maxRank = null;
+      if (maxRankRaw !== "") {
+        maxRank = Number(maxRankRaw);
+        if (!Number.isInteger(maxRank) || maxRank <= 0) {
+          showToast("Max Rank must be a positive integer.", "error");
+          return;
+        }
+      }
+
+      if (minRank !== null && maxRank !== null && minRank > maxRank) {
+        showToast("Min Rank cannot be greater than Max Rank.", "error");
+        return;
+      }
+
+      let minDuration = null;
+      if (minDurRaw !== "") {
+        minDuration = Number(minDurRaw);
+        if (!Number.isInteger(minDuration) || minDuration <= 0) {
+          showToast("Min Duration must be a positive integer in seconds.", "error");
+          return;
+        }
+      }
+
+      let maxDuration = null;
+      if (maxDurRaw !== "") {
+        maxDuration = Number(maxDurRaw);
+        if (!Number.isInteger(maxDuration) || maxDuration <= 0) {
+          showToast("Max Duration must be a positive integer in seconds.", "error");
+          return;
+        }
+      }
+
+      if (minDuration !== null && maxDuration !== null && minDuration > maxDuration) {
+        showToast("Min Duration cannot be greater than Max Duration.", "error");
+        return;
+      }
+
+      let cluster = null;
+      if (clusterRaw !== "") {
+        let items = [];
+        if (clusterRaw.startsWith("[")) {
+          try {
+            const parsed = JSON.parse(clusterRaw);
+            if (!Array.isArray(parsed)) {
+              showToast("Cluster filter JSON must be an array of positive integers.", "error");
+              return;
+            }
+            items = parsed;
+          } catch {
+            showToast("Invalid JSON syntax in Cluster filter.", "error");
+            return;
+          }
+        } else {
+          items = clusterRaw.split(",").map(x => x.trim()).filter(x => x !== "");
+        }
+
+        if (items.length > 0) {
+          const validNums = [];
+          for (const item of items) {
+            const num = Number(item);
+            if (!Number.isInteger(num) || num <= 0) {
+              showToast(`Cluster ID "${item}" is invalid. Must be positive integer.`, "error");
+              return;
+            }
+            validNums.push(num);
+          }
+          cluster = validNums;
+        }
+      }
+
+      let gameMode = null;
+      if (gameModeRaw !== "") {
+        let items = [];
+        if (gameModeRaw.startsWith("[")) {
+          try {
+            const parsed = JSON.parse(gameModeRaw);
+            if (!Array.isArray(parsed)) {
+              showToast("Game Mode filter JSON must be an array of non-negative integers.", "error");
+              return;
+            }
+            items = parsed;
+          } catch {
+            showToast("Invalid JSON syntax in Game Mode filter.", "error");
+            return;
+          }
+        } else {
+          items = gameModeRaw.split(",").map(x => x.trim()).filter(x => x !== "");
+        }
+
+        if (items.length > 0) {
+          const validNums = [];
+          for (const item of items) {
+            const num = Number(item);
+            if (!Number.isInteger(num) || num < 0) {
+              showToast(`Game Mode ID "${item}" is invalid. Must be non-negative integer.`, "error");
+              return;
+            }
+            validNums.push(num);
+          }
+          gameMode = validNums;
+        }
+      }
+
+      const cooldown = parseFloat(document.getElementById("cfgColCooldown").value);
+      if (isNaN(cooldown) || cooldown < 0.1) {
+        showToast("Cooldown must be at least 0.1 seconds.", "error");
+        return;
+      }
+      const quotaRetry = parseFloat(document.getElementById("cfgColQuotaRetry").value);
+      if (isNaN(quotaRetry) || quotaRetry < 0.1) {
+        showToast("Quota retry delay must be at least 0.1 seconds.", "error");
+        return;
+      }
+      const rateLimit = parseFloat(document.getElementById("cfgColRateLimit").value);
+      if (isNaN(rateLimit) || rateLimit < 0.1) {
+        showToast("Rate limit delay must be at least 0.1 seconds.", "error");
+        return;
+      }
+      const errorDelay = parseFloat(document.getElementById("cfgColErrorDelay").value);
+      if (isNaN(errorDelay) || errorDelay < 0.1) {
+        showToast("Error delay must be at least 0.1 seconds.", "error");
+        return;
+      }
+
+      const payload = {
+        api_key: apiKeyVal || null,
+        min_rank: minRank,
+        max_rank: maxRank,
+        min_duration: minDuration,
+        max_duration: maxDuration,
+        cluster: cluster,
+        game_mode: gameMode,
+        cooldown: cooldown,
+        quota_retry_delay: quotaRetry,
+        rate_limit_delay: rateLimit,
+        error_delay: errorDelay,
+      };
+
+      try {
+        const res = await fetch("/api/configs/public-collector", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          let errDetail = `HTTP ${res.status}`;
+          try {
+            const errData = await res.json();
+            if (errData && errData.detail) {
+              if (Array.isArray(errData.detail)) {
+                errDetail = errData.detail.map(d => d.msg || JSON.stringify(d)).join("; ");
+              } else {
+                errDetail = String(errData.detail);
+              }
+            }
+          } catch {}
+          throw new Error(errDetail);
+        }
+        showToast("Collector configuration updated.", "success");
+      } catch (err) {
+        showToast(`Failed to save collector config: ${err.message}`, "error");
+      }
+    }
+
+    async function saveEnricherConfig() {
+      const apiTokenVal = document.getElementById("cfgEnrApiToken").value.trim();
+      const batchSize = parseInt(document.getElementById("cfgEnrBatchSize").value, 10);
+      if (isNaN(batchSize) || batchSize <= 0) {
+        showToast("Batch size must be a positive integer.", "error");
+        return;
+      }
+      const cooldown = parseFloat(document.getElementById("cfgEnrCooldown").value);
+      if (isNaN(cooldown) || cooldown < 0.1) {
+        showToast("Cooldown must be at least 0.1 seconds.", "error");
+        return;
+      }
+      const idleDelay = parseFloat(document.getElementById("cfgEnrIdleDelay").value);
+      if (isNaN(idleDelay) || idleDelay < 0.1) {
+        showToast("Idle delay must be at least 0.1 seconds.", "error");
+        return;
+      }
+      const quotaRetry = parseFloat(document.getElementById("cfgEnrQuotaRetry").value);
+      if (isNaN(quotaRetry) || quotaRetry < 0.1) {
+        showToast("Quota retry delay must be at least 0.1 seconds.", "error");
+        return;
+      }
+      const rateLimit = parseFloat(document.getElementById("cfgEnrRateLimit").value);
+      if (isNaN(rateLimit) || rateLimit < 0.1) {
+        showToast("Rate limit delay must be at least 0.1 seconds.", "error");
+        return;
+      }
+      const errorDelay = parseFloat(document.getElementById("cfgEnrErrorDelay").value);
+      if (isNaN(errorDelay) || errorDelay < 0.1) {
+        showToast("Error delay must be at least 0.1 seconds.", "error");
+        return;
+      }
+
+      const payload = {
+        api_token: apiTokenVal || null,
+        batch_size: batchSize,
+        cooldown: cooldown,
+        idle_delay: idleDelay,
+        quota_retry_delay: quotaRetry,
+        rate_limit_delay: rateLimit,
+        error_delay: errorDelay,
+      };
+
+      try {
+        const res = await fetch("/api/configs/enricher", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          let errDetail = `HTTP ${res.status}`;
+          try {
+            const errData = await res.json();
+            if (errData && errData.detail) {
+              if (Array.isArray(errData.detail)) {
+                errDetail = errData.detail.map(d => d.msg || JSON.stringify(d)).join("; ");
+              } else {
+                errDetail = String(errData.detail);
+              }
+            }
+          } catch {}
+          throw new Error(errDetail);
+        }
+        showToast("Enricher configuration updated.", "success");
+      } catch (err) {
+        showToast(`Failed to save enricher config: ${err.message}`, "error");
+      }
+    }
+
+    async function saveWriterConfig() {
+      const cooldown = parseFloat(document.getElementById("cfgWriCooldown").value);
+      if (isNaN(cooldown) || cooldown < 0.01) {
+        showToast("Cooldown must be at least 0.01 seconds.", "error");
+        return;
+      }
+      const idleDelay = parseFloat(document.getElementById("cfgWriIdleDelay").value);
+      if (isNaN(idleDelay) || idleDelay < 0.1) {
+        showToast("Idle delay must be at least 0.1 seconds.", "error");
+        return;
+      }
+      const errorDelay = parseFloat(document.getElementById("cfgWriErrorDelay").value);
+      if (isNaN(errorDelay) || errorDelay < 0.1) {
+        showToast("Error delay must be at least 0.1 seconds.", "error");
+        return;
+      }
+
+      const payload = {
+        cooldown: cooldown,
+        idle_delay: idleDelay,
+        error_delay: errorDelay,
+      };
+
+      try {
+        const res = await fetch("/api/configs/storage-writer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          let errDetail = `HTTP ${res.status}`;
+          try {
+            const errData = await res.json();
+            if (errData && errData.detail) {
+              errDetail = Array.isArray(errData.detail) ? errData.detail.map(d => d.msg || JSON.stringify(d)).join("; ") : String(errData.detail);
+            }
+          } catch {}
+          throw new Error(errDetail);
+        }
+        showToast("Storage writer configuration updated.", "success");
+      } catch (err) {
+        showToast(`Failed to save storage writer config: ${err.message}`, "error");
+      }
+    }
+
+    let matchesPage = 1;
+    let matchesPageSize = 20;
+    let matchesTotal = 0;
+    let matchesTotalPages = 1;
+    let matchesSearchQuery = "";
+    let searchDebounceTimer = null;
+
+    async function loadRecentMatches() {
+      try {
+        const params = new URLSearchParams({
+          page: matchesPage,
+          page_size: matchesPageSize,
+        });
+        if (matchesSearchQuery) {
+          params.append("search", matchesSearchQuery);
+        }
+        const res = await fetch(`/api/matches/recent?${params.toString()}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        matchesTotal = data.total ?? 0;
+        matchesPage = data.page ?? 1;
+        matchesPageSize = data.page_size ?? 20;
+        matchesTotalPages = data.total_pages ?? 1;
+
+        renderMatchesTable(data.items || []);
+        renderPaginationControls();
+      } catch (err) {
+        showToast(`Failed to fetch recent matches: ${err.message}`, "error");
+      }
+    }
+
+    function renderMatchesTable(items) {
+      const tbody = document.getElementById("matchesTableBody");
+      tbody.innerHTML = "";
+
+      if (!items || items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-dim); padding: 18px 0;">No matches found.</td></tr>`;
+        return;
+      }
+
+      for (const m of items) {
+        const tr = document.createElement("tr");
+
+        let winnerBadge = '<span class="badge badge-disabled">Unknown</span>';
+        if (m.radiant_win === true) {
+          winnerBadge = '<span class="badge badge-idle">Radiant</span>';
+        } else if (m.radiant_win === false) {
+          winnerBadge = '<span class="badge badge-error">Dire</span>';
+        }
+
+        const sizeKb = m.raw_size_bytes ? (m.raw_size_bytes / 1024).toFixed(1) + " KB" : "-";
+
+        tr.innerHTML = `
+          <td><a href="#" class="match-link" data-id="${m.match_id}">#${m.match_id}</a></td>
+          <td>${m.created_at || "-"}</td>
+          <td>${winnerBadge}</td>
+          <td>${formatDuration(m.duration)}</td>
+          <td>${sizeKb}</td>
+          <td><button class="btn btn-sm btn-primary inspect-btn" data-id="${m.match_id}">Inspect</button></td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      tbody.querySelectorAll(".match-link, .inspect-btn").forEach(el => {
+        el.addEventListener("click", (e) => {
+          e.preventDefault();
+          const matchId = el.getAttribute("data-id");
+          inspectMatch(matchId);
+        });
+      });
+    }
+
+    function renderPaginationControls() {
+      const info = document.getElementById("matchesPaginationInfo");
+      const pageLabel = document.getElementById("matchesCurrentPage");
+      const prevBtn = document.getElementById("matchesPrevPageBtn");
+      const nextBtn = document.getElementById("matchesNextPageBtn");
+
+      if (matchesTotal === 0) {
+        info.innerText = "Showing 0 matches";
+        pageLabel.innerText = "Page 1 / 1";
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+        return;
+      }
+
+      const start = (matchesPage - 1) * matchesPageSize + 1;
+      const end = Math.min(matchesPage * matchesPageSize, matchesTotal);
+      info.innerText = `Showing ${start.toLocaleString()}-${end.toLocaleString()} of ${matchesTotal.toLocaleString()} matches`;
+      pageLabel.innerText = `Page ${matchesPage} / ${matchesTotalPages}`;
+
+      prevBtn.disabled = matchesPage <= 1;
+      nextBtn.disabled = matchesPage >= matchesTotalPages;
+    }
+
+    async function inspectMatch(matchId) {
+      const modal = document.getElementById("matchModal");
+      const title = document.getElementById("modalTitle");
+      const body = document.getElementById("modalBody");
+
+      title.innerText = `Match Payload: #${matchId}`;
+      body.innerText = "Loading match data from database...";
+      modal.classList.add("active");
+
+      try {
+        const res = await fetch(`/api/matches/${matchId}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        currentModalMatchJson = JSON.stringify(data, null, 2);
+        body.innerText = currentModalMatchJson;
+      } catch (err) {
+        body.innerText = `Error: ${err.message}`;
+      }
+    }
+
+    function initEvents() {
+      document.getElementById("syncNowBtn").addEventListener("click", () => {
+        fetchStats();
+        loadRecentMatches();
+        showToast("Synchronized telemetry.", "info");
+      });
+
+      const refreshBtn = document.getElementById("refreshToggleBtn");
+      refreshBtn.addEventListener("click", () => {
+        isAutoRefresh = !isAutoRefresh;
+        refreshBtn.innerText = isAutoRefresh ? "Pause Auto-Refresh" : "Resume Auto-Refresh";
+        showToast(`Auto-refresh ${isAutoRefresh ? 'resumed' : 'paused'}.`, "info");
+      });
+
+      document.getElementById("saveCollectorConfigBtn").addEventListener("click", saveCollectorConfig);
+      document.getElementById("saveEnricherConfigBtn").addEventListener("click", saveEnricherConfig);
+      document.getElementById("saveWriterConfigBtn").addEventListener("click", saveWriterConfig);
+      document.getElementById("collectorQuotaResetBtn").addEventListener("click", () => resetQuota("public_match_collector"));
+      document.getElementById("enricherQuotaResetBtn").addEventListener("click", () => resetQuota("match_enricher"));
+      document.getElementById("collectorQuotaSetBtn").addEventListener("click", () => setQuotaLimit("public_match_collector", "collectorQuotaLimitInput"));
+      document.getElementById("enricherQuotaSetBtn").addEventListener("click", () => setQuotaLimit("match_enricher", "enricherQuotaLimitInput"));
+      document.getElementById("queueSetLimitBtn").addEventListener("click", setQueueCapacity);
+      document.getElementById("maturationTimeBtn").addEventListener("click", setMaturationTime);
+      document.getElementById("storageSetLimitBtn").addEventListener("click", setStorageCapacity);
+      document.getElementById("refreshMatchesBtn").addEventListener("click", loadRecentMatches);
+
+      document.getElementById("matchesPrevPageBtn").addEventListener("click", () => {
+        if (matchesPage > 1) {
+          matchesPage--;
+          loadRecentMatches();
+        }
+      });
+
+      document.getElementById("matchesNextPageBtn").addEventListener("click", () => {
+        if (matchesPage < matchesTotalPages) {
+          matchesPage++;
+          loadRecentMatches();
+        }
+      });
+
+      document.getElementById("matchesPageSizeSelect").addEventListener("change", (e) => {
+        matchesPageSize = parseInt(e.target.value, 10) || 20;
+        matchesPage = 1;
+        loadRecentMatches();
+      });
+
+      document.getElementById("matchSearchInput").addEventListener("input", (e) => {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => {
+          matchesSearchQuery = e.target.value.trim();
+          matchesPage = 1;
+          loadRecentMatches();
+        }, 300);
+      });
+
+      document.getElementById("closeModalBtn").addEventListener("click", () => {
+        document.getElementById("matchModal").classList.remove("active");
+      });
+
+      document.getElementById("matchModal").addEventListener("click", (e) => {
+        if (e.target.id === "matchModal") {
+          document.getElementById("matchModal").classList.remove("active");
+        }
+      });
+
+      document.getElementById("copyJsonBtn").addEventListener("click", () => {
+        if (currentModalMatchJson) {
+          navigator.clipboard.writeText(currentModalMatchJson);
+          showToast("JSON payload copied to clipboard.", "success");
+        }
+      });
+
+      refreshInterval = setInterval(() => {
+        if (isAutoRefresh) {
+          fetchStats();
+        }
+      }, 3000);
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      initEvents();
+      fetchStats();
+      loadConfigs();
+      loadRecentMatches();
+    });
+  </script>
+</body>
+</html>
