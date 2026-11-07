@@ -4,7 +4,7 @@ services:
     container_name: dota_match_collector
     restart: unless-stopped
     ports:
-      - "${ADMIN_PORT:-8000}:8000"
+      - "127.0.0.1:${ADMIN_PORT:-8000}:8000"
     volumes:
       - ./data:/app/data
     env_file:

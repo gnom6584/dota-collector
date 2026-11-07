@@ -39,6 +39,7 @@ class PublicMatchPipelineImpl(PublicMatchPipeline):
         storage_table: str = "enriched_matches",
         registry_table: str = "active_match_registry",
         transaction_table: str = "pipeline_transactions",
+        batch_wait_seconds: float = 300.0,
     ) -> None:
         self.conn = conn
         self.control = control
@@ -46,6 +47,8 @@ class PublicMatchPipelineImpl(PublicMatchPipeline):
         self.storage_table = storage_table
         self.registry_table = registry_table
         self.transaction_table = transaction_table
+        self.batch_wait_seconds = batch_wait_seconds
+        self._wait_started_at: float | None = None
 
     @property
     def maturation_delay_seconds(self) -> float:
@@ -134,7 +137,13 @@ class PublicMatchPipelineImpl(PublicMatchPipeline):
         if limit <= 0:
             return []
 
-        now = int(time.time())
+        now = time.time()
+
+        # Если включен режим спячки и время еще не вышло — ничего не отдаем
+        if self._wait_started_at is not None:
+            if (now - self._wait_started_at) < self.batch_wait_seconds:
+                return []
+
         max_finished_at = int(now - self.maturation_delay_seconds)
         cursor = self.conn.cursor()
         try:
@@ -147,7 +156,38 @@ class PublicMatchPipelineImpl(PublicMatchPipeline):
                 """,
                 (max_finished_at, limit),
             )
-            return [row[0] for row in cursor.fetchall()]
+            matches = [row[0] for row in cursor.fetchall()]
+
+            # 1. Созревших матчей нет вообще — сбрасываем таймер
+            if not matches:
+                self._wait_started_at = None
+                return []
+
+            # 2. Набрали полный батч — сбрасываем таймер и сразу отдаем
+            if len(matches) >= limit:
+                self._wait_started_at = None
+                return matches
+
+            # 3. Не добрали до limit, но еще не спали — уходим в спячку
+            if self._wait_started_at is None:
+                self._wait_started_at = now
+                logger.debug(
+                    "Mature matches (%d) < limit (%d). Entering sleep mode for %.1fs.",
+                    len(matches),
+                    limit,
+                    self.batch_wait_seconds,
+                )
+                return []
+
+            # 4. Время спячки истекло — сбрасываем таймер и отдаем сколько есть
+            logger.debug(
+                "Sleep mode expired. Returning partial batch of %d/%d matches.",
+                len(matches),
+                limit,
+            )
+            self._wait_started_at = None
+            return matches
+
         except Exception as err:
             logger.error("Failed to peek mature matches: %s", err)
             return []
@@ -200,6 +240,7 @@ class PublicMatchPipelineImpl(PublicMatchPipeline):
                     )
 
             cursor.execute("COMMIT")
+            self._wait_started_at = None
             return True
         except Exception as err:
             try:
